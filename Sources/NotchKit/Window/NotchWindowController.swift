@@ -102,7 +102,11 @@ final class NotchWindowController {
 
     private func updateHover() {
         guard isVisible else { return }
-        let rect = IslandLayout.hitRect(for: store.mode, geometry: store.geometry)
+        let rect = IslandLayout.hitRect(
+            for: store.mode,
+            geometry: store.geometry,
+            hasActiveAgents: store.state.hasActiveAgents
+        )
         let inside = rect.contains(NSEvent.mouseLocation)
         if panel.ignoresMouseEvents == inside { panel.ignoresMouseEvents = !inside }
         store.setHovering(inside)

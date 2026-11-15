@@ -1,0 +1,34 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/MyNotchApp/scripts/notch activity claude \"${CLAUDE_SESSION_ID:-default}\" working \"Working\" \"$PWD\" >/dev/null 2>&1 || true"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/MyNotchApp/scripts/notch activity claude \"${CLAUDE_SESSION_ID:-default}\" waiting \"Needs input\" \"$PWD\" >/dev/null 2>&1 || true"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/MyNotchApp/scripts/notch activity claude \"${CLAUDE_SESSION_ID:-default}\" done \"Finished\" \"$PWD\" >/dev/null 2>&1 || true"
+          }
+        ]
+      }
+    ]
+  }
+}

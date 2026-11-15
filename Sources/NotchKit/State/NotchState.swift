@@ -13,8 +13,21 @@ public struct NotchState: Equatable, Sendable {
     public var activeToast: Toast?
     /// Sorted by priority (desc), FIFO within a priority.
     public var pendingToasts: [Toast] = []
+    public var agentSessions: [AgentSession] = []
 
     public init() {}
+
+    public var workingAgentCount: Int {
+        agentSessions.count(where: { $0.state == .working })
+    }
+
+    public var waitingAgentCount: Int {
+        agentSessions.count(where: { $0.state == .waiting })
+    }
+
+    public var hasActiveAgents: Bool {
+        agentSessions.contains(where: \.isActive)
+    }
 
     /// Derived, never stored, so impossible states can't exist.
     public var mode: NotchMode {
@@ -31,6 +44,8 @@ public enum NotchEvent: Sendable, Equatable {
     case postToast(Toast)
     case toastExpired(UUID)
     case dismissToast
+    case recordActivity(ActivityEvent, at: Date)
+    case clearFinishedAgents
 }
 
 public enum NotchEffect: Sendable, Equatable {
@@ -57,7 +72,67 @@ public enum NotchReducer {
         case .dismissToast:
             guard let current = s.activeToast else { return [] }
             return [.cancelExpiry(current.id)] + advance(&s)
+        case .recordActivity(let ev, let now):
+            return recordActivity(ev, at: now, into: &s)
+        case .clearFinishedAgents:
+            s.agentSessions.removeAll { !$0.isActive }
+            return []
         }
+    }
+
+    private static let maxAgentSessions = 12
+
+    private static func recordActivity(_ ev: ActivityEvent, at now: Date, into s: inout NotchState) -> [NotchEffect] {
+        let key = AgentSession.Key(source: ev.source, session: ev.session)
+        if let idx = s.agentSessions.firstIndex(where: { $0.id == key }) {
+            let wasActive = s.agentSessions[idx].isActive
+            s.agentSessions[idx].state = ev.state
+            s.agentSessions[idx].title = ev.title ?? s.agentSessions[idx].title
+            s.agentSessions[idx].cwd = ev.cwd ?? s.agentSessions[idx].cwd
+            if ev.state == .working && !wasActive {
+                s.agentSessions[idx].startedAt = now
+            }
+            s.agentSessions[idx].updatedAt = now
+        } else {
+            s.agentSessions.append(AgentSession(
+                source: ev.source,
+                session: ev.session,
+                state: ev.state,
+                title: ev.title,
+                cwd: ev.cwd,
+                startedAt: now,
+                updatedAt: now
+            ))
+        }
+
+        s.agentSessions.sort { lhs, rhs in
+            if lhs.isActive != rhs.isActive { return lhs.isActive && !rhs.isActive }
+            return lhs.updatedAt > rhs.updatedAt
+        }
+        if s.agentSessions.count > maxAgentSessions {
+            s.agentSessions.removeLast(s.agentSessions.count - maxAgentSessions)
+        }
+
+        guard ev.state != .working else { return [] }
+
+        let (symbol, tint, priority, ttl): (String, Toast.Tint, Toast.Priority, Double) = switch ev.state {
+        case .waiting: ("hand.raised.fill", .waiting, .critical, 6)
+        case .done: ("checkmark", .success, .normal, 3)
+        case .failed: ("xmark", .failure, .high, 5)
+        case .working: ("gearshape.2.fill", .info, .low, 2)
+        }
+        let cwdName = ev.cwd.flatMap { let n = ($0 as NSString).lastPathComponent; return n.isEmpty ? nil : n }
+        let subtitle = [ev.source, cwdName].compactMap { $0 }.joined(separator: " · ")
+        let toast = Toast(
+            key: "activity:\(ev.source):\(ev.session)",
+            title: ev.title ?? "\(ev.source) \(ev.state.rawValue)",
+            subtitle: subtitle.isEmpty ? nil : subtitle,
+            symbol: symbol,
+            tint: tint,
+            priority: priority,
+            duration: .seconds(ttl)
+        )
+        return post(toast, into: &s)
     }
 
     private static func post(_ t: Toast, into s: inout NotchState) -> [NotchEffect] {

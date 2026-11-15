@@ -47,23 +47,7 @@ final class AppCoordinator {
                 case .postToast(let toast):
                     store.post(toast)
                 case .activity(let ev):
-                    let (symbol, tint, priority): (String, Toast.Tint, Toast.Priority) = switch ev.state {
-                    case .working: ("gearshape.2.fill", .info, .low)
-                    case .waiting: ("hand.raised.fill", .waiting, .critical)
-                    case .done: ("checkmark", .success, .normal)
-                    case .failed: ("xmark", .failure, .high)
-                    }
-                    let subtitle = [ev.source, ev.cwd.map { ($0 as NSString).lastPathComponent }]
-                        .compactMap { $0 }
-                        .joined(separator: " · ")
-                    store.post(Toast(
-                        key: "activity:\(ev.source):\(ev.session)",
-                        title: ev.title ?? "\(ev.source) \(ev.state.rawValue)",
-                        subtitle: subtitle.isEmpty ? nil : subtitle,
-                        symbol: symbol,
-                        tint: tint,
-                        priority: priority
-                    ))
+                    store.send(.recordActivity(ev, at: .now))
                 }
             }
             try server.start()

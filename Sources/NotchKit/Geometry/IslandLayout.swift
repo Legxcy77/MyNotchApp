@@ -8,10 +8,13 @@ public enum IslandLayout {
     public static let toastBodyHeight: CGFloat = 54
     public static let fileDropHeight: CGFloat = 120
 
-    public static func size(for mode: NotchMode, geometry g: NotchGeometry) -> CGSize {
+    public static let earWidth: CGFloat = 36
+
+    public static func size(for mode: NotchMode, geometry g: NotchGeometry, hasActiveAgents: Bool = false) -> CGSize {
         switch mode {
         case .collapsed:
-            return g.baseSize
+            guard hasActiveAgents else { return g.baseSize }
+            return CGSize(width: g.baseSize.width + earWidth * 2, height: g.baseSize.height)
         case .expanded:
             return CGSize(width: max(expandedSize.width, g.baseSize.width + 200),
                           height: g.cameraClearance + expandedSize.height)
@@ -43,8 +46,8 @@ public enum IslandLayout {
 
     /// Rect that counts as "hovering the island". Collapsed gets a forgiving activation zone,
     /// and it always extends to the very top edge so flicking the cursor up works.
-    public static func hitRect(for mode: NotchMode, geometry g: NotchGeometry) -> CGRect {
-        var r = g.islandRect(size: size(for: mode, geometry: g))
+    public static func hitRect(for mode: NotchMode, geometry g: NotchGeometry, hasActiveAgents: Bool = false) -> CGRect {
+        var r = g.islandRect(size: size(for: mode, geometry: g, hasActiveAgents: hasActiveAgents))
         r.size.height += g.topInset
         if mode == .collapsed { r = r.insetBy(dx: -14, dy: -6) }
         return r

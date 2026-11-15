@@ -36,7 +36,8 @@ public struct NotchRootView: View {
     public var body: some View {
         let mode = store.mode
         let geometry = store.geometry
-        let size = IslandLayout.size(for: mode, geometry: geometry)
+        let hasActiveAgents = store.state.hasActiveAgents
+        let size = IslandLayout.size(for: mode, geometry: geometry, hasActiveAgents: hasActiveAgents)
         let radii = IslandLayout.radii(for: mode, geometry: geometry)
         let shape = UnevenRoundedRectangle(topLeadingRadius: radii.top, bottomLeadingRadius: radii.bottom,
                                            bottomTrailingRadius: radii.bottom, topTrailingRadius: radii.top,
@@ -46,10 +47,11 @@ public struct NotchRootView: View {
             .frame(width: size.width, height: size.height, alignment: .top)
             .background(.black, in: shape)
             .clipShape(shape)
-            .shadow(color: .black.opacity(mode == .collapsed ? 0 : 0.4), radius: 20, y: 10)
+            .shadow(color: .black.opacity(mode == .collapsed && !hasActiveAgents ? 0 : 0.4), radius: 20, y: 10)
             .padding(.top, geometry.topInset)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .animation(Motion.morph, value: mode)
+            .animation(Motion.morph, value: hasActiveAgents)
             .environment(\.colorScheme, .dark)
     }
 
@@ -58,10 +60,23 @@ public struct NotchRootView: View {
         ZStack(alignment: .top) {
             switch mode {
             case .collapsed:
-                Color.clear
-            case .expanded:
-                ExpandedView(clearance: geometry.cameraClearance)
+                if store.state.hasActiveAgents {
+                    CollapsedEarsView(
+                        notchWidth: geometry.kind == .hardware ? geometry.baseSize.width : geometry.baseSize.width - 12,
+                        workingCount: store.state.workingAgentCount,
+                        waitingCount: store.state.waitingAgentCount
+                    )
                     .transition(.islandContent)
+                } else {
+                    Color.clear
+                }
+            case .expanded:
+                ExpandedView(
+                    clearance: geometry.cameraClearance,
+                    sessions: store.state.agentSessions,
+                    onClearFinished: { store.send(.clearFinishedAgents) }
+                )
+                .transition(.islandContent)
             case .toast(let toast):
                 ToastView(
                     toast: toast,

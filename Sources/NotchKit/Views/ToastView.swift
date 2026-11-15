@@ -46,33 +46,146 @@ struct ToastView: View {
     }
 }
 
-struct ExpandedView: View {
-    let clearance: CGFloat
+struct CollapsedEarsView: View {
+    let notchWidth: CGFloat
+    let workingCount: Int
+    let waitingCount: Int
+
+    private var activeCount: Int { workingCount + waitingCount }
+    private var tint: Color {
+        waitingCount > 0 ? Toast.Tint.waiting.color : Toast.Tint.info.color
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        HStack(spacing: 0) {
+            Group {
+                if waitingCount > 0 {
+                    Image(systemName: "hand.raised.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(tint)
+                } else {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .tint(.white)
+                }
+            }
+            .frame(width: IslandLayout.earWidth)
+
+            Spacer()
+                .frame(width: max(0, notchWidth))
+
+            Text("\(activeCount)")
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundStyle(tint)
+                .frame(width: IslandLayout.earWidth)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+struct ExpandedView: View {
+    let clearance: CGFloat
+    let sessions: [AgentSession]
+    let onClearFinished: () -> Void
+
+    private var hasFinished: Bool {
+        sessions.contains { !$0.isActive }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
             TimelineView(.everyMinute) { context in
                 HStack(alignment: .firstTextBaseline) {
                     Text(context.date, format: .dateTime.hour().minute())
-                        .font(.system(size: 34, weight: .semibold, design: .rounded))
+                        .font(.system(size: 32, weight: .semibold, design: .rounded))
                         .monospacedDigit()
                     Text(context.date, format: .dateTime.weekday(.wide).day().month(.wide))
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.white.opacity(0.5))
                     Spacer()
+                    if hasFinished {
+                        Button("Clear", action: onClearFinished)
+                            .buttonStyle(.plain)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.45))
+                    }
                 }
                 .foregroundStyle(.white)
             }
 
-            Text("All quiet. Builds, agents and servers will show up here.")
-                .font(.system(size: 12))
-                .foregroundStyle(.white.opacity(0.4))
+            if sessions.isEmpty {
+                Text("All quiet. Builds, agents and servers will show up here.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.4))
+            } else {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(sessions.prefix(4)) { session in
+                            AgentSessionRow(session: session, now: context.date)
+                        }
+                    }
+                }
+            }
 
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 22)
         .padding(.top, clearance + 12)
         .padding(.bottom, 16)
+    }
+}
+
+private struct AgentSessionRow: View {
+    let session: AgentSession
+    let now: Date
+
+    private var tint: Color {
+        switch session.state {
+        case .working: Toast.Tint.info.color
+        case .waiting: Toast.Tint.waiting.color
+        case .done: Toast.Tint.success.color
+        case .failed: Toast.Tint.failure.color
+        }
+    }
+
+    private var elapsedText: String {
+        let end = session.isActive ? now : session.updatedAt
+        let s = max(0, Int(end.timeIntervalSince(session.startedAt)))
+        if s < 60 { return "\(s)s" }
+        if s < 3600 { return "\(s / 60)m \(s % 60)s" }
+        return "\(s / 3600)h \((s % 3600) / 60)m"
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(tint)
+                .frame(width: 6, height: 6)
+
+            Text(session.source)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white)
+
+            if let dir = session.cwdBasename {
+                Text(dir)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+
+            if let title = session.title, !title.isEmpty {
+                Text(title)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+
+            Spacer(minLength: 0)
+
+            Text(elapsedText)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.45))
+        }
     }
 }
 
