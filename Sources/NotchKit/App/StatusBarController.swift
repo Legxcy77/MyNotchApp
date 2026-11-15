@@ -5,16 +5,18 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let store: NotchStore
     private let window: NotchWindowController
     private let launchAtLogin: LaunchAtLoginService
+    private let feedback: FeedbackService
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let menu = NSMenu()
     var onMenuVisibilityChanged: (@MainActor (Bool) -> Void)?
     var onPinLogFile: (@MainActor (String) -> Void)?
     var onUnpinLog: (@MainActor () -> Void)?
 
-    init(store: NotchStore, window: NotchWindowController, launchAtLogin: LaunchAtLoginService) {
+    init(store: NotchStore, window: NotchWindowController, launchAtLogin: LaunchAtLoginService, feedback: FeedbackService) {
         self.store = store
         self.window = window
         self.launchAtLogin = launchAtLogin
+        self.feedback = feedback
         super.init()
         let image = NSImage(systemSymbolName: "capsule.portrait.fill", accessibilityDescription: "MyNotchApp")
         image?.isTemplate = true
@@ -111,6 +113,12 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(logItem)
 
         menu.addItem(.separator())
+        menu.addItem(ActionMenuItem(title: "Sound on Toasts", on: feedback.isSoundEnabled) { [feedback] in
+            feedback.isSoundEnabled.toggle()
+        })
+        menu.addItem(ActionMenuItem(title: "Haptic on Alerts", on: feedback.isHapticEnabled) { [feedback] in
+            feedback.isHapticEnabled.toggle()
+        })
         let launchItem = ActionMenuItem(
             title: launchAtLogin.isBundledApp ? "Launch at Login" : "Launch at Login (requires .app)",
             on: launchAtLogin.isEnabled

@@ -73,3 +73,4 @@ struct RunTimelineTests {
         #expect(state.runHistory.isEmpty)
     }
 }
+

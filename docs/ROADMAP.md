@@ -34,7 +34,7 @@ Legend: `[x]` done · `[ ]` todo · (U) unit-tested · (V) verified by eye on a 
 - [x] **D4 Log Pin**: pin a file path or a command (`docker logs -f api`). Regex rules (default `ERROR|Exception|FATAL`) flash a red toast with the matching line. Gate: (V) `echo ERROR >> pinned.log` flashes.
 - [x] **D5 Command Palette**: hotkey ⌥Space opens a fuzzy list of package.json scripts / Makefile targets / `dotnet` tasks for the last active repo. Run in background; the result goes to S1-style toasts. Gate: (V) run `npm test` from the palette.
 - [x] **D6 Run Timeline**: history of the last 30 commands/agent runs with duration, exit status, and cwd, in an expanded tab. Gate: (V).
-- [ ] **D7 Haptic + sound polish**: trackpad haptic (`NSHapticFeedbackManager`) on high-priority toasts, optional subtle sound per tint. Gate: (V).
+- [x] **D7 Haptic + sound polish**: trackpad haptic (`NSHapticFeedbackManager`) on high-priority toasts, optional subtle sound per tint. Gate: (V).
 
 ## Media
 - [ ] **M1** `LRCParser` (pure). Gate: (U) multi-timestamp lines, offsets, metadata, blank lines, binary-search current line.
@@ -71,4 +71,5 @@ Legend: `[x]` done · `[ ]` todo · (U) unit-tested · (V) verified by eye on a 
 - 2026-11-15: D4 implemented (`LogLineMatcher`, `LogPinMonitor` for file `DispatchSource` or streaming command, `/logpin` endpoint, `notch logpin`/`unpin` CLI, and menu bar picker). 55/55 tests green, bundle rebuilt. D3 (V) verified by owner; D4 (V) pending.
 - 2026-11-15: D5 implemented (`RepoTaskScanner` for `package.json`, `Makefile`, `Package.swift`, `.csproj`/`.sln`, `HotKeyMonitor` `⌥Space`, `CommandPaletteView`, background task runner posting S1-style toasts). 57/57 tests green. D4 (V) verified by owner; D5 (V) pending.
 - 2026-11-15: D6 implemented (`RunRecord`, `ExpandedTab` `.overview`/`.timeline` switcher in `ExpandedView`, automatic 30-item history from Command Palette runs and agent `.done`/`.failed` transitions with duration, exit code, and cwd). 60/60 tests green, bundle rebuilt. D5 (V) verified by owner; D6 (V) pending.
+- 2026-11-15: D7 implemented (`FeedbackPolicy`, `FeedbackService` using `NSHapticFeedbackManager` on `.high`/`.critical` toasts and subtle `NSSound` per tint, deduplicated in `NotchStore.onToastShown`, menu bar toggles). 62/62 tests green, bundle rebuilt. D6 (V) verified by owner; D7 (V) pending.
 

@@ -19,6 +19,7 @@ final class AppCoordinator {
     let store = NotchStore()
     let window: NotchWindowController
     let launchAtLogin = LaunchAtLoginService()
+    let feedback = FeedbackService()
     let statusBar: StatusBarController
     private var eventBus: EventBusServer?
     private var devServers: DevServerMonitor?
@@ -41,7 +42,11 @@ final class AppCoordinator {
             }
         }
         window = NotchWindowController(store: store)
-        statusBar = StatusBarController(store: store, window: window, launchAtLogin: launchAtLogin)
+        statusBar = StatusBarController(store: store, window: window, launchAtLogin: launchAtLogin, feedback: feedback)
+
+        store.onToastShown = { [feedback] toast in
+            feedback.play(for: toast)
+        }
 
         let monitor = DevServerMonitor { [weak store] servers in
             store?.send(.devServersUpdated(servers))

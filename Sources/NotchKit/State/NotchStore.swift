@@ -30,6 +30,7 @@ public final class NotchStore {
     @ObservationIgnored public var onErrorAction: (@MainActor (ErrorLensAction) -> Void)?
     @ObservationIgnored public var onRunTask: (@MainActor (RepoTask) -> Void)?
     @ObservationIgnored public var onModeChanged: (@MainActor (NotchMode) -> Void)?
+    @ObservationIgnored public var onToastShown: (@MainActor (Toast) -> Void)?
     @ObservationIgnored private var expiryTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var hoverExitTask: Task<Void, Never>?
 
@@ -39,11 +40,17 @@ public final class NotchStore {
 
     public func send(_ event: NotchEvent) {
         let oldMode = state.mode
+        let oldToast = state.activeToast
         let effects = NotchReducer.reduce(&state, event)
         effects.forEach(run)
         let newMode = state.mode
         if newMode != oldMode {
             onModeChanged?(newMode)
+        }
+        if let newToast = state.activeToast,
+           newToast.id != oldToast?.id,
+           (oldToast?.key == nil || newToast.key != oldToast?.key || newToast.tint != oldToast?.tint) {
+            onToastShown?(newToast)
         }
     }
 

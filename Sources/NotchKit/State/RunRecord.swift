@@ -47,3 +47,4 @@ public struct RunRecord: Identifiable, Equatable, Sendable {
         return "\(minutes)m \(seconds)s"
     }
 }
+
