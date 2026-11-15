@@ -12,9 +12,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     var onPinLogFile: (@MainActor (String) -> Void)?
     var onUnpinLog: (@MainActor () -> Void)?
     var onSetupFaceUnlock: (@MainActor () -> Void)?
+    var onScanFaceID: (@MainActor () -> Void)?
+    var onSetAutoUnlockPassword: (@MainActor () -> Void)?
     var onLockScreen: (@MainActor () -> Void)?
     var isAutoLockEnabled: (@MainActor () -> Bool)?
     var onToggleAutoLock: (@MainActor () -> Void)?
+    var onOpenWidgetStudio: (@MainActor () -> Void)?
+    var onTriggerVoiceAI: (@MainActor () -> Void)?
 
     init(store: NotchStore, window: NotchWindowController, launchAtLogin: LaunchAtLoginService, feedback: FeedbackService) {
         self.store = store
@@ -120,6 +124,12 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(logItem)
 
         menu.addItem(.separator())
+        menu.addItem(ActionMenuItem(title: "Widget Studio…") { [weak self] in
+            self?.onOpenWidgetStudio?()
+        })
+        menu.addItem(ActionMenuItem(title: "Voice-to-Notch AI") { [weak self] in
+            self?.onTriggerVoiceAI?()
+        })
         menu.addItem(ActionMenuItem(title: "Lock Screen (⌥⌘L)") { [weak self] in
             self?.onLockScreen?()
         })
@@ -128,6 +138,12 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         })
         menu.addItem(ActionMenuItem(title: "Setup Face Unlock…") { [weak self] in
             self?.onSetupFaceUnlock?()
+        })
+        menu.addItem(ActionMenuItem(title: "Scan Face ID (Notch Ears)") { [weak self] in
+            self?.onScanFaceID?()
+        })
+        menu.addItem(ActionMenuItem(title: "Set Auto-Unlock Password…") { [weak self] in
+            self?.onSetAutoUnlockPassword?()
         })
         menu.addItem(ActionMenuItem(title: "Sound on Toasts", on: feedback.isSoundEnabled) { [feedback] in
             feedback.isSoundEnabled.toggle()

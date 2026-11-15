@@ -10,19 +10,61 @@ public struct ActivityEvent: Equatable, Sendable {
     public var state: State
     public var title: String?
     public var cwd: String?
+    public var repo: String?
+    public var worktree: String?
+    public var branch: String?
+    public var modifiedFiles: [String]
 
-    public init(source: String, session: String, state: State, title: String? = nil, cwd: String? = nil) {
+    public init(
+        source: String,
+        session: String,
+        state: State,
+        title: String? = nil,
+        cwd: String? = nil,
+        repo: String? = nil,
+        worktree: String? = nil,
+        branch: String? = nil,
+        modifiedFiles: [String] = []
+    ) {
         self.source = source
         self.session = session
         self.state = state
         self.title = title
         self.cwd = cwd
+        self.repo = repo
+        self.worktree = worktree
+        self.branch = branch
+        self.modifiedFiles = modifiedFiles
+    }
+}
+
+public struct TerminalOutputInput: Equatable, Sendable {
+    public var command: String
+    public var project: String?
+    public var output: String
+    public var exitCode: Int32?
+    public var durationSeconds: Double?
+
+    public init(
+        command: String,
+        project: String? = nil,
+        output: String,
+        exitCode: Int32? = nil,
+        durationSeconds: Double? = nil
+    ) {
+        self.command = command
+        self.project = project
+        self.output = output
+        self.exitCode = exitCode
+        self.durationSeconds = durationSeconds
     }
 }
 
 public enum EventBusAction: Equatable, Sendable {
     case postToast(Toast)
     case activity(ActivityEvent)
+    case buildEvent(BuildEventInput)
+    case terminalOutput(TerminalOutputInput)
     case pinLogFile(path: String, pattern: String)
     case pinLogCommand(command: String, pattern: String)
     case unpinLog
@@ -60,6 +102,10 @@ public struct EventBusRouter: Sendable {
             return handleProgress(request.body)
         case ("POST", "/activity"):
             return handleActivity(request.body)
+        case ("POST", "/build"):
+            return handleBuild(request.body)
+        case ("POST", "/terminal"):
+            return handleTerminal(request.body)
         case ("POST", "/logpin"):
             return handleLogPin(request.body)
         default:
@@ -133,12 +179,69 @@ public struct EventBusRouter: Sendable {
             session: payload.session,
             state: payload.state,
             title: payload.title,
-            cwd: payload.cwd
+            cwd: payload.cwd,
+            repo: payload.repo,
+            worktree: payload.worktree,
+            branch: payload.branch,
+            modifiedFiles: payload.modifiedFiles ?? []
         )
         return EventBusResult(
             response: HTTPResponse(statusCode: 200, reason: "OK", json: #"{"ok":true}"#),
             action: .activity(event)
         )
+    }
+
+    private func handleBuild(_ body: Data) -> EventBusResult {
+        guard let payload = try? JSONDecoder().decode(BuildPayload.self, from: body),
+              !payload.project.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let phase = BuildEventInput.Phase(rawValue: payload.phase.lowercased()) else {
+            return badRequest("invalid_build_payload")
+        }
+        let kind = BuildRunKind(rawValue: (payload.kind ?? "build").lowercased()) ?? .build
+        let toolchain = Self.parseToolchain(payload.toolchain)
+        let input = BuildEventInput(
+            runID: payload.runId,
+            project: payload.project,
+            toolchain: toolchain,
+            kind: kind,
+            phase: phase,
+            exitCode: payload.exitCode,
+            durationSeconds: payload.durationSeconds,
+            output: payload.output
+        )
+        return EventBusResult(
+            response: HTTPResponse(statusCode: 200, reason: "OK", json: #"{"ok":true}"#),
+            action: .buildEvent(input)
+        )
+    }
+
+    private func handleTerminal(_ body: Data) -> EventBusResult {
+        guard let payload = try? JSONDecoder().decode(TerminalPayload.self, from: body),
+              !payload.command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return badRequest("invalid_terminal_payload")
+        }
+        let input = TerminalOutputInput(
+            command: payload.command,
+            project: payload.project,
+            output: payload.output ?? "",
+            exitCode: payload.exitCode,
+            durationSeconds: payload.durationSeconds
+        )
+        return EventBusResult(
+            response: HTTPResponse(statusCode: 200, reason: "OK", json: #"{"ok":true}"#),
+            action: .terminalOutput(input)
+        )
+    }
+
+    private static func parseToolchain(_ raw: String?) -> DeveloperToolchain? {
+        guard let raw else { return nil }
+        switch raw.lowercased() {
+        case "swift": return .swift
+        case "ts", "typescript", "node", "node_ts", "vitest", "jest": return .nodeTypeScript
+        case "dotnet", "csharp", "c#", "msbuild": return .dotnet
+        case "generic": return .generic
+        default: return nil
+        }
     }
 
     private func handleLogPin(_ body: Data) -> EventBusResult {
@@ -219,6 +322,10 @@ private struct ActivityPayload: Decodable {
     var state: ActivityEvent.State
     var title: String?
     var cwd: String?
+    var repo: String?
+    var worktree: String?
+    var branch: String?
+    var modifiedFiles: [String]?
 }
 
 private struct LogPinPayload: Decodable {
@@ -226,5 +333,24 @@ private struct LogPinPayload: Decodable {
     var path: String?
     var command: String?
     var pattern: String?
+}
+
+private struct BuildPayload: Decodable {
+    var runId: String?
+    var project: String
+    var toolchain: String?
+    var kind: String?
+    var phase: String
+    var exitCode: Int32?
+    var durationSeconds: Double?
+    var output: String?
+}
+
+private struct TerminalPayload: Decodable {
+    var command: String
+    var project: String?
+    var output: String?
+    var exitCode: Int32?
+    var durationSeconds: Double?
 }
 

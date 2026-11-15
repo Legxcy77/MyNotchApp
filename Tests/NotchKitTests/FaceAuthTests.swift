@@ -76,4 +76,53 @@ struct FaceAuthTests {
         #expect(FaceProfileStore.delete(at: fileURL) == true)
         #expect(FaceProfileStore.load(from: fileURL) == nil)
     }
+
+    @Test func faceAlignerComputesRollAngleAnd112CropForTiltedEyes() {
+        let imageSize = CGSize(width: 1280, height: 720)
+        let faceBox = CGRect(x: 0.35, y: 0.25, width: 0.30, height: 0.45)
+
+        // +15 degrees tilt in image coordinates
+        let angleRad = 15.0 * .pi / 180.0
+        let eyeCenter = CGPoint(x: 640, y: 400)
+        let halfDist: CGFloat = 50
+        let leftEye = CGPoint(
+            x: eyeCenter.x - cos(angleRad) * halfDist,
+            y: eyeCenter.y - sin(angleRad) * halfDist
+        )
+        let rightEye = CGPoint(
+            x: eyeCenter.x + cos(angleRad) * halfDist,
+            y: eyeCenter.y + sin(angleRad) * halfDist
+        )
+
+        let result = FaceAligner.computeAlignedCropRectAndAngle(
+            leftEye: leftEye,
+            rightEye: rightEye,
+            faceBoundingBox: faceBox,
+            imageSize: imageSize
+        )
+
+        #expect(abs(result.rollAngleRadians - angleRad) < 0.001)
+        #expect(result.cropRect.width > 0)
+        #expect(result.cropRect.height > 0)
+        #expect(abs(result.targetSize.width - 112) < 0.01)
+        #expect(abs(result.targetSize.height - 112) < 0.01)
+
+        // Also test -15 degrees tilt
+        let negAngle = -15.0 * .pi / 180.0
+        let negLeft = CGPoint(
+            x: eyeCenter.x - cos(negAngle) * halfDist,
+            y: eyeCenter.y - sin(negAngle) * halfDist
+        )
+        let negRight = CGPoint(
+            x: eyeCenter.x + cos(negAngle) * halfDist,
+            y: eyeCenter.y + sin(negAngle) * halfDist
+        )
+        let negResult = FaceAligner.computeAlignedCropRectAndAngle(
+            leftEye: negLeft,
+            rightEye: negRight,
+            faceBoundingBox: faceBox,
+            imageSize: imageSize
+        )
+        #expect(abs(negResult.rollAngleRadians - negAngle) < 0.001)
+    }
 }

@@ -14,6 +14,8 @@ public struct LockScreenView: View {
     let onAuthenticateWithSystem: () -> Void
     let onRetryFaceScan: () -> Void
     let onEmergencyClose: () -> Void
+    let isSystemOverlay: Bool
+    let onPresentationModeChange: ((LockPlayerPresentation) -> Void)?
 
     @State private var playerMode: LockPlayerPresentation = .albumFocus
     @Namespace private var playerNamespace
@@ -24,7 +26,9 @@ public struct LockScreenView: View {
         onMediaCommand: @escaping (MediaCommand) -> Void,
         onAuthenticateWithSystem: @escaping () -> Void,
         onRetryFaceScan: @escaping () -> Void,
-        onEmergencyClose: @escaping () -> Void = {}
+        onEmergencyClose: @escaping () -> Void = {},
+        isSystemOverlay: Bool = false,
+        onPresentationModeChange: ((LockPlayerPresentation) -> Void)? = nil
     ) {
         self.store = store
         self.faceAuth = faceAuth
@@ -32,6 +36,8 @@ public struct LockScreenView: View {
         self.onAuthenticateWithSystem = onAuthenticateWithSystem
         self.onRetryFaceScan = onRetryFaceScan
         self.onEmergencyClose = onEmergencyClose
+        self.isSystemOverlay = isSystemOverlay
+        self.onPresentationModeChange = onPresentationModeChange
     }
 
     private var track: NowPlayingTrack? {
@@ -48,6 +54,161 @@ public struct LockScreenView: View {
     }
 
     public var body: some View {
+        Group {
+            if isSystemOverlay {
+                systemOverlayBody
+            } else {
+                fullPreviewBody
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea()
+        .animation(.spring(response: 0.42, dampingFraction: 0.8), value: playerMode)
+        .animation(.spring(response: 0.42, dampingFraction: 0.8), value: track?.trackKey)
+        .onChange(of: playerMode) { _, newValue in
+            onPresentationModeChange?(newValue)
+        }
+    }
+
+    @ViewBuilder
+    private var systemOverlayBody: some View {
+        ZStack {
+            if playerMode != .compact, let artworkImage {
+                Image(nsImage: artworkImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .blur(radius: 65)
+                    .scaleEffect(1.16)
+                    .opacity(0.68)
+                    .overlay(
+                        LinearGradient(
+                            colors: [.black.opacity(0.55), .black.opacity(0.18), .black.opacity(0.65)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            } else {
+                Color.clear
+            }
+
+            VStack(spacing: 16) {
+                if let track {
+                    mediaStage(track: track)
+                }
+
+                HStack(spacing: 10) {
+                    if store.state.workingAgentCount > 0 {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .controlSize(.mini)
+                            Text("\(store.state.workingAgentCount) agent running")
+                                .font(.system(size: 11.5, weight: .medium, design: .monospaced))
+                        }
+                        .foregroundStyle(.white.opacity(0.9))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial, in: Capsule())
+                    }
+                }
+            }
+        }
+        .overlay(alignment: .top) {
+            if faceAuth.hasEnrolledFace {
+                notchFaceIDPill
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var notchFaceIDPill: some View {
+        let isScanning = faceAuth.mode == .verifying || faceAuth.mode == .verified
+        let isVerified = faceAuth.mode == .verified
+        let awaitingBlink = faceAuth.verifyMessage.contains("กระพริบตา")
+        let shortInstruction: String = isVerified
+            ? "Success"
+            : (awaitingBlink ? "กระพริบตา 1 ครั้ง" : (faceAuth.verifyMessage.contains("ไม่พบ") ? "ไม่พบใบหน้า" : "มองกล้อง"))
+        let earWidth: CGFloat = isScanning ? 124 : 38
+        let pillHeight: CGFloat = isScanning ? 42 : 38
+
+        Button {
+            NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+            onRetryFaceScan()
+        } label: {
+            HStack(spacing: 0) {
+                // Left ear: Face ID icon + ring
+                HStack(spacing: 6) {
+                    ZStack {
+                        if isScanning {
+                            FaceScanSpinnerRing(
+                                isVerifying: faceAuth.mode == .verifying,
+                                isVerified: isVerified,
+                                isAwaitingBlink: awaitingBlink,
+                                lineWidth: 1.8
+                            )
+                            .frame(width: 20, height: 20)
+                            .transition(.scale(scale: 0.6).combined(with: .opacity))
+                        }
+                        Image(systemName: isVerified ? "checkmark" : "faceid")
+                            .font(.system(size: isScanning ? 10.5 : 12, weight: .semibold))
+                            .foregroundStyle(isVerified ? Color.green : Color.white.opacity(isScanning ? 0.95 : 0.72))
+                            .contentTransition(.symbolEffect(.replace))
+                    }
+                    if isScanning {
+                        Text("Face ID")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.9))
+                            .fixedSize()
+                            .transition(.opacity.combined(with: .scale(scale: 0.92, anchor: .leading)))
+                    }
+                }
+                .frame(width: earWidth, height: pillHeight)
+                .clipped()
+
+                // Center camera spacer (never draw under hardware notch camera)
+                Spacer()
+                    .frame(width: 185)
+
+                // Right ear: instruction while scanning, subtle hint when idle
+                ZStack {
+                    if isScanning {
+                        Text(shortInstruction)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(isVerified ? Color.green : (awaitingBlink ? Color.orange : Color.white.opacity(0.9)))
+                            .lineLimit(1)
+                            .fixedSize()
+                            .id(shortInstruction)
+                            .transition(.opacity.combined(with: .scale(scale: 0.92, anchor: .trailing)))
+                    } else {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.35))
+                            .transition(.opacity)
+                    }
+                }
+                .frame(width: earWidth, height: pillHeight)
+                .clipped()
+            }
+            .padding(.top, 4)
+            .background(
+                .black,
+                in: NotchIslandShape(
+                    topEarRadius: isScanning ? 10 : 8,
+                    topCornerRadius: 0,
+                    bottomCornerRadius: isScanning ? 18 : 14
+                )
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .animation(.spring(response: 0.42, dampingFraction: 0.8), value: isScanning)
+        .animation(.spring(response: 0.42, dampingFraction: 0.8), value: faceAuth.mode)
+        .animation(.easeOut(duration: 0.18), value: shortInstruction)
+    }
+
+    private var fullPreviewBody: some View {
         ZStack {
             backdropView
 
@@ -86,10 +247,6 @@ public struct LockScreenView: View {
             .padding(.top, 20)
             .padding(.trailing, 24)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea()
-        .animation(.spring(response: 0.42, dampingFraction: 0.8), value: playerMode)
-        .animation(.spring(response: 0.42, dampingFraction: 0.8), value: track?.trackKey)
     }
 
     // MARK: - Backdrop
@@ -118,6 +275,15 @@ public struct LockScreenView: View {
                     endPoint: .bottomTrailing
                 )
                 .ignoresSafeArea()
+            }
+
+            if store.widgetConfig.isEnabled(.lockScreenAurora) {
+                AuroraMetalView(
+                    palette: AuroraPalette.from(imageData: track?.artworkData),
+                    intensity: store.widgetConfig.auroraIntensity * 0.55
+                )
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
             }
 
             Color.black.opacity(0.28)
@@ -160,28 +326,28 @@ public struct LockScreenView: View {
                 .frame(maxHeight: 380)
 
             case .albumFocus:
-                VStack(spacing: 16) {
-                    albumArtworkCard(size: 270)
+                VStack(spacing: 18) {
+                    albumArtworkCard(size: 325)
                         .onTapGesture {
                             playerMode = .compact
                         }
 
-                    frostedPlayerCard(track: track, position: position, width: 300)
+                    frostedPlayerCard(track: track, position: position, width: 350)
                 }
 
             case .lyricsSplit:
                 HStack(alignment: .center, spacing: 44) {
                     VStack(spacing: 16) {
-                        albumArtworkCard(size: 250)
+                        albumArtworkCard(size: 290)
                             .onTapGesture {
                                 playerMode = .compact
                             }
 
-                        frostedPlayerCard(track: track, position: position, width: 290)
+                        frostedPlayerCard(track: track, position: position, width: 320)
                     }
 
                     lockLyricsPanel(position: position)
-                        .frame(width: 400, height: 350)
+                        .frame(width: 420, height: 370)
                         .transition(.opacity.combined(with: .move(edge: .trailing)))
                 }
             }
@@ -393,6 +559,7 @@ public struct LockScreenView: View {
 
     @ViewBuilder
     private func lockLyricsPanel(position: TimeInterval) -> some View {
+        Group {
         if let lyrics, !lyrics.lines.isEmpty {
             let activeIndex = lyrics.currentLineIndex(at: position + 0.25)
             ScrollViewReader { proxy in
@@ -442,6 +609,23 @@ public struct LockScreenView: View {
                     .foregroundStyle(.white.opacity(0.45))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if lyrics != nil {
+                HStack(spacing: 6) {
+                    Button("-0.5s") { store.adjustLyricsOffset(-0.5) }
+                        .buttonStyle(.plain)
+                    Button("+0.5s") { store.adjustLyricsOffset(0.5) }
+                        .buttonStyle(.plain)
+                }
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.75))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.ultraThinMaterial, in: Capsule())
+                .padding(8)
+            }
         }
     }
 
@@ -568,7 +752,7 @@ public struct LockScreenView: View {
     private var faceStatusText: String {
         switch faceAuth.mode {
         case .verified:
-            return "ปลดล็อกสำเร็จ"
+            return "กำลังเข้าสู่ระบบ..."
         case .verifying:
             return faceAuth.verifyMessage
         case .failed(let message):
@@ -586,7 +770,7 @@ public struct LockScreenView: View {
     }
 }
 
-private struct FaceScanSpinnerRing: View {
+struct FaceScanSpinnerRing: View {
     let isVerifying: Bool
     let isVerified: Bool
     let isAwaitingBlink: Bool

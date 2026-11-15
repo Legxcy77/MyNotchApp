@@ -25,5 +25,28 @@ import Testing
         _ = NotchReducer.reduce(&s, .clearStagedFiles)
         #expect(s.stagedFiles.isEmpty)
     }
+
+    @Test("store.airDropStagedFiles forwards staged URLs to AirDrop handler and skips empty tray")
+    @MainActor
+    func airDropStagedFilesCallsHandler() {
+        let store = NotchStore()
+        var sharedBatches: [[URL]] = []
+        store.onAirDrop = { urls in
+            sharedBatches.append(urls)
+            return true
+        }
+
+        // Empty tray does nothing
+        #expect(store.airDropStagedFiles() == false)
+        #expect(sharedBatches.isEmpty)
+
+        let a = URL(fileURLWithPath: "/tmp/report.pdf")
+        let b = URL(fileURLWithPath: "/tmp/photo.png")
+        store.send(.stageFiles([a, b]))
+
+        #expect(store.airDropStagedFiles() == true)
+        #expect(sharedBatches.count == 1)
+        #expect(sharedBatches[0].map(\.lastPathComponent) == ["report.pdf", "photo.png"])
+    }
 }
 

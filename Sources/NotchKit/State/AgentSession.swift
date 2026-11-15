@@ -17,6 +17,10 @@ public struct AgentSession: Equatable, Sendable, Identifiable {
     public var state: ActivityEvent.State
     public var title: String?
     public var cwd: String?
+    public var repo: String?
+    public var worktree: String?
+    public var branch: String?
+    public var modifiedFiles: [String]
     public var startedAt: Date
     public var updatedAt: Date
 
@@ -26,6 +30,10 @@ public struct AgentSession: Equatable, Sendable, Identifiable {
         state: ActivityEvent.State,
         title: String? = nil,
         cwd: String? = nil,
+        repo: String? = nil,
+        worktree: String? = nil,
+        branch: String? = nil,
+        modifiedFiles: [String] = [],
         startedAt: Date,
         updatedAt: Date
     ) {
@@ -34,6 +42,10 @@ public struct AgentSession: Equatable, Sendable, Identifiable {
         self.state = state
         self.title = title
         self.cwd = cwd
+        self.repo = repo
+        self.worktree = worktree
+        self.branch = branch
+        self.modifiedFiles = modifiedFiles
         self.startedAt = startedAt
         self.updatedAt = updatedAt
     }

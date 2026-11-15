@@ -6,16 +6,39 @@ public struct DevServer: Equatable, Sendable, Identifiable {
     public var processName: String
     public var port: UInt16
     public var label: String
+    public var localAddress: String?
+    public var parentPID: Int32?
+    public var commandLine: String?
+    public var associatedProject: String?
+    public var startTime: String?
+    public var isProtected: Bool
 
     public var url: URL {
         URL(string: "http://localhost:\(port)")!
     }
 
-    public init(pid: Int32, processName: String, port: UInt16, label: String) {
+    public init(
+        pid: Int32,
+        processName: String,
+        port: UInt16,
+        label: String,
+        localAddress: String? = nil,
+        parentPID: Int32? = nil,
+        commandLine: String? = nil,
+        associatedProject: String? = nil,
+        startTime: String? = nil,
+        isProtected: Bool = false
+    ) {
         self.pid = pid
         self.processName = processName
         self.port = port
         self.label = label
+        self.localAddress = localAddress
+        self.parentPID = parentPID
+        self.commandLine = commandLine
+        self.associatedProject = associatedProject
+        self.startTime = startTime
+        self.isProtected = isProtected
     }
 }
 
@@ -56,7 +79,8 @@ public enum LsofParser {
                         pid: pid,
                         processName: currentProcess,
                         port: port,
-                        label: mapLabel(process: currentProcess, port: port)
+                        label: mapLabel(process: currentProcess, port: port),
+                        localAddress: value
                     ))
                 }
             default:

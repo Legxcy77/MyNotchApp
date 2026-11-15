@@ -21,6 +21,7 @@ final class NotchWindowController {
     private let panel: NotchPanel
     private var monitors: [Any] = []
     private var observers: [NSObjectProtocol] = []
+    private var swipeRecognizer = SwipeGestureRecognizer()
 
     /// nil = automatic (built-in notch screen, else main).
     var pinnedDisplayID: CGDirectDisplayID? {
@@ -111,6 +112,11 @@ final class NotchWindowController {
             MainActor.assumeIsolated { self?.handleOutsideClick() }
         }) { monitors.append(clickOutside) }
 
+        if let scrollMon = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel, handler: { [weak self] event in
+            MainActor.assumeIsolated { self?.handleScrollSwipe(event) }
+            return event
+        }) { monitors.append(scrollMon) }
+
         observers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -154,6 +160,51 @@ final class NotchWindowController {
         store.setHovering(false)
         store.send(.hoverChanged(false))
         if !panel.ignoresMouseEvents { panel.ignoresMouseEvents = true }
+    }
+
+    private func handleScrollSwipe(_ event: NSEvent) {
+        guard isVisible else { return }
+        let rect = IslandLayout.hitRect(
+            for: store.mode,
+            geometry: store.geometry,
+            hasActiveAgents: store.state.showsEars
+        )
+        guard rect.contains(NSEvent.mouseLocation) else { return }
+
+        let phase: SwipePhase
+        if event.momentumPhase != [] {
+            phase = .momentum
+        } else if event.phase == .began {
+            phase = .began
+        } else if event.phase == .ended || event.phase == .cancelled {
+            phase = .ended
+        } else {
+            phase = .changed
+        }
+
+        guard let direction = swipeRecognizer.ingest(
+            deltaX: event.scrollingDeltaX,
+            deltaY: event.scrollingDeltaY,
+            phase: phase
+        ) else { return }
+
+        switch direction {
+        case .down:
+            store.send(.hoverChanged(true))
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        case .up:
+            store.send(.hoverChanged(false))
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        case .left, .right:
+            guard store.mode == .expanded, store.widgetConfig.scrollToSwitchTabs else { return }
+            let tabs = ExpandedTab.allCases
+            guard let idx = tabs.firstIndex(of: store.state.expandedTab) else { return }
+            let nextIdx = direction == .right
+                ? (idx + 1) % tabs.count
+                : (idx - 1 + tabs.count) % tabs.count
+            store.send(.setExpandedTab(tabs[nextIdx]))
+            NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+        }
     }
 }
 

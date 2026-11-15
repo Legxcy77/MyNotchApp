@@ -70,12 +70,34 @@ cat > "$CONTENTS/Info.plist" <<EOF
     <string>MyNotchApp uses the camera for the Camera Mirror preview inside the notch.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
     <string>MyNotchApp reads upcoming calendar events to show meeting countdowns and join links.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>MyNotchApp uses the microphone for Voice-to-Notch AI commands.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>MyNotchApp uses on-device speech recognition for Voice-to-Notch AI commands.</string>
 </dict>
 </plist>
 EOF
 
-echo "Ad-hoc signing $APP_BUNDLE..."
-codesign --force --deep --sign - --identifier "$BUNDLE_ID" "$APP_BUNDLE"
+SIGN_IDENTITY="${SIGN_IDENTITY:-}"
+if [[ -z "$SIGN_IDENTITY" ]]; then
+    if security find-identity -v -p codesigning | grep -q '"MyNotchApp Local Dev"'; then
+        SIGN_IDENTITY="MyNotchApp Local Dev"
+    else
+        APPLE_DEV_ID="$(security find-identity -v -p codesigning | awk -F'"' '/Apple Development:/ {print $2; exit}')"
+        if [[ -n "$APPLE_DEV_ID" ]]; then
+            SIGN_IDENTITY="$APPLE_DEV_ID"
+        fi
+    fi
+fi
+
+if [[ -n "$SIGN_IDENTITY" ]]; then
+    echo "Signing $APP_BUNDLE with '$SIGN_IDENTITY' (TCC permissions will persist across rebuilds)..."
+    codesign --force --deep --sign "$SIGN_IDENTITY" --identifier "$BUNDLE_ID" "$APP_BUNDLE"
+else
+    echo "Ad-hoc signing $APP_BUNDLE..."
+    echo "Tip: Run ./scripts/setup-signing.sh once so Camera/Accessibility permissions survive rebuilds."
+    codesign --force --deep --sign - --identifier "$BUNDLE_ID" "$APP_BUNDLE"
+fi
 codesign --verify --verbose=2 "$APP_BUNDLE"
 
 echo "Done: $APP_BUNDLE"

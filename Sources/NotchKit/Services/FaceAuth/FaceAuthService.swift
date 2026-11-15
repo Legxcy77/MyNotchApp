@@ -34,6 +34,7 @@ public final class FaceAuthService {
     private let processor = FaceFrameProcessor()
     private var isConfigured = false
     private var onVerifiedCallback: (@MainActor () -> Void)?
+    public var onEarStatusChanged: (@MainActor (FaceScanEarStatus?) -> Void)?
 
     public init() {
         self.permissionStatus = Self.currentPermissionStatus()
@@ -90,6 +91,7 @@ public final class FaceAuthService {
         onVerifiedCallback = onVerified
         verifyMessage = "มองที่กล้องและกระพริบตาเบาๆ"
         mode = .verifying
+        onEarStatusChanged?(FaceScanEarStatus(instruction: "มองกล้อง"))
         processor.configureForVerification(gallery: profile.embeddings)
         startCameraSession()
     }
@@ -97,9 +99,9 @@ public final class FaceAuthService {
     public func stop() {
         processor.reset()
         onVerifiedCallback = nil
-        if mode == .enrolling || mode == .verifying {
-            mode = .idle
-        }
+        onEarStatusChanged?(nil)
+        mode = .idle
+        verifyMessage = "มองที่กล้องเพื่อปลดล็อก"
         let session = self.session
         sessionQueue.async {
             if session.isRunning {
@@ -180,10 +182,14 @@ public final class FaceAuthService {
         case .verificationStatus(let message):
             guard mode == .verifying else { return }
             verifyMessage = message
+            let awaitingBlink = message.contains("กระพริบตา")
+            let shortText = awaitingBlink ? "กระพริบตา 1 ครั้ง" : (message.contains("ไม่พบ") ? "ไม่พบใบหน้า" : "กำลังสแกน...")
+            onEarStatusChanged?(FaceScanEarStatus(isVerified: false, isAwaitingBlink: awaitingBlink, instruction: shortText))
 
         case .verified:
             guard mode == .verifying else { return }
             mode = .verified
+            onEarStatusChanged?(FaceScanEarStatus(isVerified: true, isAwaitingBlink: false, instruction: "ปลดล็อกสำเร็จ"))
             let cb = onVerifiedCallback
             onVerifiedCallback = nil
             let session = self.session
@@ -193,6 +199,12 @@ public final class FaceAuthService {
                 }
             }
             cb?()
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(1.4))
+                if self?.mode != .verifying {
+                    self?.onEarStatusChanged?(nil)
+                }
+            }
         }
     }
 
@@ -311,7 +323,7 @@ private final class FaceFrameProcessor: NSObject, AVCaptureVideoDataOutputSample
         case .enroll:
             var embedding: [Float]?
             if shouldCaptureEmbedding, sample.faceArea >= 0.05 {
-                embedding = extractFeaturePrint(from: pixelBuffer, faceBoundingBox: face.boundingBox)
+                embedding = extractFeaturePrint(from: pixelBuffer, face: face)
                 if embedding != nil {
                     state.withLock { $0.lastEmbeddingAt = now }
                 }
@@ -324,7 +336,7 @@ private final class FaceFrameProcessor: NSObject, AVCaptureVideoDataOutputSample
                 return s.blinkDetector.didBlink
             }
 
-            guard let probe = extractFeaturePrint(from: pixelBuffer, faceBoundingBox: face.boundingBox) else {
+            guard let probe = extractFeaturePrint(from: pixelBuffer, face: face) else {
                 return
             }
             let sim = FaceEmbeddingMath.bestSimilarity(probe: probe, gallery: gallery)
@@ -341,28 +353,12 @@ private final class FaceFrameProcessor: NSObject, AVCaptureVideoDataOutputSample
         }
     }
 
-    private func extractFeaturePrint(from pixelBuffer: CVPixelBuffer, faceBoundingBox: CGRect) -> [Float]? {
+    private func extractFeaturePrint(from pixelBuffer: CVPixelBuffer, face: VNFaceObservation) -> [Float]? {
         let image = CIImage(cvPixelBuffer: pixelBuffer).oriented(.upMirrored)
-        let extent = image.extent
-        let padX = faceBoundingBox.width * 0.10
-        let padY = faceBoundingBox.height * 0.10
-        let padded = CGRect(
-            x: max(0, faceBoundingBox.minX - padX),
-            y: max(0, faceBoundingBox.minY - padY),
-            width: min(1, faceBoundingBox.width + padX * 2),
-            height: min(1, faceBoundingBox.height + padY * 2)
-        )
-        let cropRect = CGRect(
-            x: padded.minX * extent.width,
-            y: padded.minY * extent.height,
-            width: padded.width * extent.width,
-            height: padded.height * extent.height
-        ).intersection(extent)
-        guard !cropRect.isEmpty else { return nil }
+        guard let aligned = FaceAligner.alignedFace112(from: image, face: face) else { return nil }
 
-        let cropped = image.cropped(to: cropRect)
         let request = VNGenerateImageFeaturePrintRequest()
-        let handler = VNImageRequestHandler(ciImage: cropped, options: [:])
+        let handler = VNImageRequestHandler(ciImage: aligned, options: [:])
         try? handler.perform([request])
         guard let obs = request.results?.first, obs.elementType == .float else { return nil }
 

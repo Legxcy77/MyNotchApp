@@ -50,3 +50,4 @@ struct NotesAndAndroidDropTests {
         #expect(html.contains("/download/0"))
     }
 }
+

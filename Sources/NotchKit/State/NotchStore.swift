@@ -6,6 +6,9 @@ import Observation
 @Observable
 public final class NotchStore {
     public private(set) var state = NotchState()
+    public let widgetConfig = NotchWidgetConfig()
+    public var terminalTail = TerminalTailBuffer()
+    public let voiceService = VoiceNotchService()
     /// Geometry of the screen currently hosting the island (set by NotchWindowController).
     public internal(set) var geometry = ScreenGeometry.resolve(
         ScreenMetrics(frame: CGRect(x: 0, y: 0, width: 1512, height: 982), safeAreaTop: 0)
@@ -14,6 +17,7 @@ public final class NotchStore {
     public enum DevServerAction: Sendable {
         case open(DevServer)
         case copy(DevServer)
+        case copyPID(DevServer)
         case kill(DevServer)
     }
 
@@ -43,9 +47,15 @@ public final class NotchStore {
         case refresh
     }
 
+    public enum BuildAction: Sendable, Equatable {
+        case openLocation(BuildSourceLocation)
+        case copyError(BuildTestResult)
+    }
+
     @ObservationIgnored public var hoverExitDelay: Duration = .milliseconds(180)
     @ObservationIgnored public var onAction: (@MainActor (Toast.Action) -> Void)?
     @ObservationIgnored public var onServerAction: (@MainActor (DevServerAction) -> Void)?
+    @ObservationIgnored public var onDockerAction: (@MainActor (DockerAction) -> Void)?
     @ObservationIgnored public var onPasteClipboard: (@MainActor (ClipboardItem) -> Void)?
     @ObservationIgnored public var onCopyText: (@MainActor (String) -> Void)?
     @ObservationIgnored public var onErrorAction: (@MainActor (ErrorLensAction) -> Void)?
@@ -54,11 +64,16 @@ public final class NotchStore {
     @ObservationIgnored public var onMediaCommand: (@MainActor (MediaCommand) -> Void)?
     @ObservationIgnored public var onQuickTool: (@MainActor (QuickToolAction) -> Void)?
     @ObservationIgnored public var onAudioAction: (@MainActor (AudioAction) -> Void)?
+    @ObservationIgnored public var onBuildAction: (@MainActor (BuildAction) -> Void)?
+    @ObservationIgnored public var onWorklogRangeChanged: (@MainActor (WorklogRange) -> Void)?
+    @ObservationIgnored public var onClearWorklog: (@MainActor (WorklogRange) -> Void)?
     @ObservationIgnored public var onToggleAndroidDrop: (@MainActor () -> Void)?
     @ObservationIgnored public var onNotesUpdated: (@MainActor (NotesAndTasksPayload) -> Void)?
     @ObservationIgnored public var onFocusChanged: (@MainActor (FocusSession?) -> Void)?
     @ObservationIgnored public var onModeChanged: (@MainActor (NotchMode) -> Void)?
     @ObservationIgnored public var onToastShown: (@MainActor (Toast) -> Void)?
+    @ObservationIgnored public var onLyricsOffsetChanged: (@MainActor (String, TimeInterval) -> Void)?
+    @ObservationIgnored public var onAirDrop: (@MainActor ([URL]) -> Bool)?
     @ObservationIgnored private var expiryTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var hoverExitTask: Task<Void, Never>?
 
@@ -84,8 +99,38 @@ public final class NotchStore {
 
     public func post(_ toast: Toast) { send(.postToast(toast)) }
 
+    @discardableResult
+    public func airDropStagedFiles() -> Bool {
+        guard !state.stagedFiles.isEmpty else { return false }
+        return onAirDrop?(state.stagedFiles) ?? false
+    }
+
+    public func adjustLyricsOffset(_ delta: TimeInterval) {
+        send(.adjustLyricsOffset(delta))
+        if let key = state.nowPlaying?.trackKey, let offset = state.lyrics?.offset {
+            onLyricsOffsetChanged?(key, offset)
+        }
+    }
+
     public func perform(_ action: DevServerAction) {
         onServerAction?(action)
+    }
+
+    public func performDocker(_ action: DockerAction) {
+        onDockerAction?(action)
+    }
+
+    public func performBuild(_ action: BuildAction) {
+        onBuildAction?(action)
+    }
+
+    public func selectWorklogRange(_ range: WorklogRange) {
+        send(.setWorklogRange(range))
+        onWorklogRangeChanged?(range)
+    }
+
+    public func clearWorklog() {
+        onClearWorklog?(state.worklogRange)
     }
 
     public func paste(_ item: ClipboardItem) {

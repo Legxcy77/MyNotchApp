@@ -59,4 +59,33 @@ private let mbp14 = ScreenMetrics(
         #expect(s.height == 32 + IslandLayout.expandedSize.height)
         #expect(s.width <= IslandLayout.panelSize.width)
     }
+
+    @Test func notchIslandShapeProducesValidPathBounds() {
+        let shape = NotchIslandShape(topEarRadius: 8, topCornerRadius: 0, bottomCornerRadius: 28)
+        let rect = CGRect(x: 0, y: 0, width: 420, height: 220)
+        let path = shape.path(in: rect)
+        #expect(!path.isEmpty)
+        #expect(path.boundingRect.width >= rect.width)
+        #expect(abs(path.boundingRect.height - rect.height) < 1.0)
+    }
+
+    @Test func swipeGestureRecognizerDetectsDirectionsAndIgnoresMomentum() {
+        var recognizer = SwipeGestureRecognizer(threshold: 28)
+
+        #expect(recognizer.ingest(deltaX: 0, deltaY: -10, phase: .began) == nil)
+        #expect(recognizer.ingest(deltaX: 0, deltaY: -22, phase: .changed) == .down)
+        // Must not refire within the same gesture or during momentum
+        #expect(recognizer.ingest(deltaX: 0, deltaY: -40, phase: .changed) == nil)
+        #expect(recognizer.ingest(deltaX: 0, deltaY: -40, phase: .momentum) == nil)
+        #expect(recognizer.ingest(deltaX: 0, deltaY: 0, phase: .ended) == nil)
+
+        // New gesture: swipe up
+        #expect(recognizer.ingest(deltaX: 0, deltaY: 35, phase: .began) == .up)
+        #expect(recognizer.ingest(deltaX: 0, deltaY: 0, phase: .ended) == nil)
+
+        // New gesture: swipe left / right
+        #expect(recognizer.ingest(deltaX: -32, deltaY: 2, phase: .began) == .left)
+        #expect(recognizer.ingest(deltaX: 0, deltaY: 0, phase: .ended) == nil)
+        #expect(recognizer.ingest(deltaX: 32, deltaY: -2, phase: .began) == .right)
+    }
 }

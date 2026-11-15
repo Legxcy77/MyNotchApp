@@ -1,6 +1,6 @@
 import Foundation
 
-public struct LRCLine: Equatable, Sendable, Identifiable {
+public struct LRCWord: Equatable, Sendable, Identifiable {
     public let id: Int
     public let time: TimeInterval
     public let text: String
@@ -9,6 +9,20 @@ public struct LRCLine: Equatable, Sendable, Identifiable {
         self.id = id
         self.time = time
         self.text = text
+    }
+}
+
+public struct LRCLine: Equatable, Sendable, Identifiable {
+    public let id: Int
+    public let time: TimeInterval
+    public let text: String
+    public let words: [LRCWord]
+
+    public init(id: Int, time: TimeInterval, text: String, words: [LRCWord] = []) {
+        self.id = id
+        self.time = time
+        self.text = text
+        self.words = words
     }
 }
 
@@ -56,6 +70,29 @@ public struct LRCDocument: Equatable, Sendable {
         }
         return result
     }
+
+    public func withOffset(_ delta: TimeInterval) -> LRCDocument {
+        let shiftedLines = lines.map { line in
+            let shiftedWords = line.words.map { word in
+                LRCWord(id: word.id, time: max(0, word.time + delta), text: word.text)
+            }
+            return LRCLine(
+                id: line.id,
+                time: max(0, line.time + delta),
+                text: line.text,
+                words: shiftedWords
+            )
+        }
+        return LRCDocument(
+            title: title,
+            artist: artist,
+            album: album,
+            offset: offset + delta,
+            lines: shiftedLines,
+            isSynced: isSynced,
+            sourceLabel: sourceLabel
+        )
+    }
 }
 
 public enum LRCParser {
@@ -95,11 +132,14 @@ public enum LRCParser {
         }
 
         let sorted = entries
-            .map { (time: max(0, $0.time + offsetSeconds), text: $0.text) }
+            .map { entry -> (time: TimeInterval, text: String, words: [LRCWord]) in
+                let (cleanText, parsedWords) = parseInlineWords(from: entry.text, lineTime: entry.time, offset: offsetSeconds)
+                return (time: max(0, entry.time + offsetSeconds), text: cleanText, words: parsedWords)
+            }
             .sorted { $0.time < $1.time }
 
         let lines = sorted.enumerated().map { idx, entry in
-            LRCLine(id: idx, time: entry.time, text: entry.text)
+            LRCLine(id: idx, time: entry.time, text: entry.text, words: entry.words)
         }
 
         return LRCDocument(
@@ -136,6 +176,47 @@ public enum LRCParser {
             isSynced: false,
             sourceLabel: sourceLabel
         )
+    }
+
+    private static func parseInlineWords(
+        from rawText: String,
+        lineTime: TimeInterval,
+        offset: TimeInterval
+    ) -> (cleanText: String, words: [LRCWord]) {
+        guard rawText.contains("<") else {
+            return (rawText, [])
+        }
+        var words: [LRCWord] = []
+        var clean = ""
+        var idx = rawText.startIndex
+        var currentWordTime = lineTime
+        var wordID = 0
+
+        while idx < rawText.endIndex {
+            if rawText[idx] == "<", let close = rawText[idx...].firstIndex(of: ">") {
+                let tag = String(rawText[rawText.index(after: idx)..<close])
+                if let t = parseTimestamp(tag) {
+                    currentWordTime = t
+                    idx = rawText.index(after: close)
+                    continue
+                }
+            }
+            let nextTag = rawText[idx...].firstIndex(of: "<") ?? rawText.endIndex
+            let segment = String(rawText[idx..<nextTag])
+            if !segment.isEmpty {
+                clean += segment
+                words.append(LRCWord(
+                    id: wordID,
+                    time: max(0, currentWordTime + offset),
+                    text: segment
+                ))
+                wordID += 1
+            }
+            idx = nextTag
+        }
+
+        let trimmed = clean.trimmingCharacters(in: .whitespaces)
+        return (trimmed.isEmpty ? rawText : trimmed, words)
     }
 
     private static func parseMetadata(

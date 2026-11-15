@@ -16,14 +16,23 @@ public struct ErrorLensPayload: Equatable, Sendable {
     public var log: String
 }
 
+public struct FaceScanEarStatus: Equatable, Sendable {
+    public var isVerified: Bool
+    public var isAwaitingBlink: Bool
+    public var instruction: String
+
+    public init(isVerified: Bool = false, isAwaitingBlink: Bool = false, instruction: String) {
+        self.isVerified = isVerified
+        self.isAwaitingBlink = isAwaitingBlink
+        self.instruction = instruction
+    }
+}
+
 public enum ExpandedTab: String, Equatable, Sendable, CaseIterable {
     case overview
     case media
     case tools
-    case notes
     case drop
-    case focus
-    case mirror
     case timeline
 }
 
@@ -62,6 +71,7 @@ public struct NotchState: Equatable, Sendable {
     public var pendingToasts: [Toast] = []
     public var agentSessions: [AgentSession] = []
     public var devServers: [DevServer] = []
+    public var dockerContainers: [DockerContainer] = []
     public var stagedFiles: [URL] = []
     public var clipboard = ClipboardHistory()
     public var gitStatus: GitStatus?
@@ -75,10 +85,18 @@ public struct NotchState: Equatable, Sendable {
     public var focusSession: FocusSession?
     public var focusDurationMinutes: Int = 25
     public var systemPulse: [SystemPulseSample] = []
+    public var faceScanEar: FaceScanEarStatus? = nil
     public var audioState = AudioStateSnapshot()
     public var isClipboardPaused = false
     public var notesPayload = NotesAndTasksPayload()
     public var androidDrop = AndroidDropStatus()
+    public var latestBuildResult: BuildTestResult?
+    public var buildHistory: [BuildTestResult] = []
+    public var buildCorrelator = BuildEventCorrelator()
+    public var agentConflicts: [AgentConflict] = []
+    public var acknowledgedConflictIDs: Set<String> = []
+    public var worklogEntries: [WorklogEntry] = []
+    public var worklogRange: WorklogRange = .today
 
     public init() {}
 
@@ -104,7 +122,7 @@ public struct NotchState: Equatable, Sendable {
     }
 
     public var showsEars: Bool {
-        hasActiveAgents || hasActiveMedia || hasUrgentMeeting || focusSession != nil
+        hasActiveAgents || hasActiveMedia || hasUrgentMeeting || focusSession != nil || faceScanEar != nil
     }
 
     /// Derived, never stored, so impossible states can't exist.
@@ -129,6 +147,8 @@ public enum NotchEvent: Sendable, Equatable {
     case recordActivity(ActivityEvent, at: Date)
     case clearFinishedAgents
     case devServersUpdated([DevServer])
+    case dockerContainersUpdated([DockerContainer])
+    case faceScanEarUpdated(FaceScanEarStatus?)
     case stageFiles([URL])
     case removeStagedFile(URL)
     case clearStagedFiles
@@ -154,6 +174,7 @@ public enum NotchEvent: Sendable, Equatable {
     case clearAIChat
     case nowPlayingUpdated(NowPlayingTrack?)
     case lyricsUpdated(LRCDocument?)
+    case adjustLyricsOffset(TimeInterval)
     case nextMeetingUpdated(UpcomingMeeting?)
     case startFocus(minutes: Int, at: Date)
     case stopFocus
@@ -166,6 +187,10 @@ public enum NotchEvent: Sendable, Equatable {
     case toggleQuickTask(UUID)
     case removeQuickTask(UUID)
     case androidDropUpdated(AndroidDropStatus)
+    case buildEvent(BuildEventInput, at: Date = .now)
+    case worklogUpdated([WorklogEntry])
+    case setWorklogRange(WorklogRange)
+    case worklogAIExplanationUpdated(id: UUID, explanation: String)
 }
 
 public enum NotchEffect: Sendable, Equatable {
@@ -194,11 +219,21 @@ public enum NotchReducer {
             return [.cancelExpiry(current.id)] + advance(&s)
         case .recordActivity(let ev, let now):
             return recordActivity(ev, at: now, into: &s)
+        case .buildEvent(let input, let now):
+            return recordBuildEvent(input, at: now, into: &s)
         case .clearFinishedAgents:
             s.agentSessions.removeAll { !$0.isActive }
+            s.agentConflicts = AgentConflictDetector.detect(sessions: s.agentSessions, now: Date())
+            s.acknowledgedConflictIDs = s.acknowledgedConflictIDs.intersection(Set(s.agentConflicts.map(\.id)))
             return []
         case .devServersUpdated(let servers):
             s.devServers = servers
+            return []
+        case .dockerContainersUpdated(let containers):
+            s.dockerContainers = containers
+            return []
+        case .faceScanEarUpdated(let status):
+            s.faceScanEar = status
             return []
         case .stageFiles(let urls):
             for url in urls {
@@ -242,6 +277,17 @@ public enum NotchReducer {
             return []
         case .openErrorLens(let title, let log):
             s.activeError = ErrorLensPayload(title: title, log: log)
+            return []
+        case .worklogUpdated(let entries):
+            s.worklogEntries = entries
+            return []
+        case .setWorklogRange(let range):
+            s.worklogRange = range
+            return []
+        case .worklogAIExplanationUpdated(let id, let explanation):
+            if let idx = s.worklogEntries.firstIndex(where: { $0.id == id }) {
+                s.worklogEntries[idx].aiExplanation = explanation
+            }
             return []
         case .closeErrorLens:
             s.activeError = nil
@@ -295,6 +341,9 @@ public enum NotchReducer {
             return []
         case .lyricsUpdated(let doc):
             s.lyrics = doc
+            return []
+        case .adjustLyricsOffset(let delta):
+            s.lyrics = s.lyrics?.withOffset(delta)
             return []
         case .nextMeetingUpdated(let meeting):
             s.nextMeeting = meeting
@@ -360,6 +409,12 @@ public enum NotchReducer {
             s.agentSessions[idx].state = ev.state
             s.agentSessions[idx].title = ev.title ?? s.agentSessions[idx].title
             s.agentSessions[idx].cwd = ev.cwd ?? s.agentSessions[idx].cwd
+            s.agentSessions[idx].repo = ev.repo ?? s.agentSessions[idx].repo
+            s.agentSessions[idx].worktree = ev.worktree ?? s.agentSessions[idx].worktree
+            s.agentSessions[idx].branch = ev.branch ?? s.agentSessions[idx].branch
+            for file in ev.modifiedFiles where !s.agentSessions[idx].modifiedFiles.contains(file) {
+                s.agentSessions[idx].modifiedFiles.append(file)
+            }
             if ev.state == .working && !wasActive {
                 s.agentSessions[idx].startedAt = now
             }
@@ -374,6 +429,10 @@ public enum NotchReducer {
                 state: ev.state,
                 title: ev.title,
                 cwd: ev.cwd,
+                repo: ev.repo,
+                worktree: ev.worktree,
+                branch: ev.branch,
+                modifiedFiles: ev.modifiedFiles,
                 startedAt: now,
                 updatedAt: now
             ))
@@ -401,7 +460,24 @@ public enum NotchReducer {
             s.agentSessions.removeLast(s.agentSessions.count - maxAgentSessions)
         }
 
-        guard ev.state != .working else { return [] }
+        s.agentConflicts = AgentConflictDetector.detect(sessions: s.agentSessions, now: now)
+        s.acknowledgedConflictIDs = s.acknowledgedConflictIDs.intersection(Set(s.agentConflicts.map(\.id)))
+
+        var effects: [NotchEffect] = []
+        if let confirmed = s.agentConflicts.first(where: { $0.confidence == .confirmed && !s.acknowledgedConflictIDs.contains($0.id) }) {
+            s.acknowledgedConflictIDs.insert(confirmed.id)
+            effects.append(contentsOf: post(Toast(
+                key: "conflict:\(confirmed.id)",
+                title: confirmed.title,
+                subtitle: confirmed.detail,
+                symbol: "exclamationmark.2",
+                tint: .waiting,
+                priority: .high,
+                duration: .seconds(6)
+            ), into: &s))
+        }
+
+        guard ev.state != .working else { return effects }
 
         let (symbol, tint, priority, ttl): (String, Toast.Tint, Toast.Priority, Double) = switch ev.state {
         case .waiting: ("hand.raised.fill", .waiting, .critical, 6)
@@ -420,7 +496,7 @@ public enum NotchReducer {
             priority: priority,
             duration: .seconds(ttl)
         )
-        return post(toast, into: &s)
+        return effects + post(toast, into: &s)
     }
 
     private static func post(_ t: Toast, into s: inout NotchState) -> [NotchEffect] {
@@ -469,6 +545,78 @@ public enum NotchReducer {
         let next = s.pendingToasts.removeFirst()
         s.activeToast = next
         return [.scheduleExpiry(next.id, after: next.duration)]
+    }
+}
+
+private extension NotchReducer {
+    static func recordBuildEvent(_ input: BuildEventInput, at now: Date, into s: inout NotchState) -> [NotchEffect] {
+        var normalized = input
+        if normalized.timestamp == .distantPast {
+            normalized.timestamp = now
+        }
+        guard let result = s.buildCorrelator.ingest(normalized) else {
+            return []
+        }
+
+        s.latestBuildResult = result
+        if let idx = s.buildHistory.firstIndex(where: { $0.id == result.id }) {
+            s.buildHistory[idx] = result
+        } else {
+            s.buildHistory.insert(result, at: 0)
+            if s.buildHistory.count > 10 {
+                s.buildHistory.removeLast(s.buildHistory.count - 10)
+            }
+        }
+
+        switch result.status {
+        case .running:
+            return []
+        case .passed:
+            let durationText = result.durationSeconds.map { String(format: "%.1fs", $0) }
+            let subtitle = [result.toolchain.displayName, durationText].compactMap { $0 }.joined(separator: " · ")
+            return post(Toast(
+                key: result.toastKey,
+                title: "\(result.project) \(result.kind == .test ? "tests passed" : "built")",
+                subtitle: subtitle.isEmpty ? result.summary : subtitle,
+                symbol: "checkmark.circle.fill",
+                tint: .success,
+                priority: .normal,
+                duration: .seconds(3)
+            ), into: &s)
+        case .failed:
+            let locPart = result.primaryLocation?.displayString
+            let subtitle = [locPart, result.summary].compactMap { $0 }.joined(separator: " · ")
+            return post(Toast(
+                key: result.toastKey,
+                title: "\(result.project) \(result.kind == .test ? "tests failed" : "build failed")",
+                subtitle: subtitle,
+                symbol: "xmark.octagon.fill",
+                tint: .failure,
+                priority: .high,
+                duration: .seconds(8),
+                errorLog: result.rawLogSnippet ?? result.summary
+            ), into: &s)
+        case .cancelled:
+            return post(Toast(
+                key: result.toastKey,
+                title: "\(result.project) \(result.kind.rawValue) cancelled",
+                subtitle: result.toolchain.displayName,
+                symbol: "stop.circle.fill",
+                tint: .waiting,
+                priority: .normal,
+                duration: .seconds(3)
+            ), into: &s)
+        case .unknown:
+            return post(Toast(
+                key: result.toastKey,
+                title: "\(result.project) \(result.kind.rawValue) finished",
+                subtitle: result.summary,
+                symbol: "questionmark.circle.fill",
+                tint: .neutral,
+                priority: .normal,
+                duration: .seconds(3)
+            ), into: &s)
+        }
     }
 }
 

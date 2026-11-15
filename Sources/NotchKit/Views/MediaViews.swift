@@ -111,18 +111,20 @@ private struct AudioBarsView: View {
     let isPlaying: Bool
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 20.0, paused: !isPlaying)) { context in
+        TimelineView(.animation(minimumInterval: 1.0 / 24.0, paused: !isPlaying)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
-            HStack(spacing: 2) {
-                ForEach(0..<4, id: \.self) { idx in
-                    let phase = t * 6.0 + Double(idx) * 1.3
-                    let h: CGFloat = isPlaying ? CGFloat(4 + (sin(phase) * 0.5 + 0.5) * 9) : 3
+            HStack(spacing: 1.8) {
+                ForEach(0..<6, id: \.self) { idx in
+                    let f1 = sin(t * (5.2 + Double(idx) * 0.9) + Double(idx) * 1.1)
+                    let f2 = cos(t * 3.1 - Double(idx) * 0.7)
+                    let envelope = (f1 * 0.65 + f2 * 0.35) * 0.5 + 0.5
+                    let h: CGFloat = isPlaying ? CGFloat(3.5 + envelope * 10.5) : 3
                     RoundedRectangle(cornerRadius: 1)
-                        .fill(.white.opacity(0.85))
-                        .frame(width: 2.2, height: h)
+                        .fill(.white.opacity(isPlaying ? 0.9 : 0.45))
+                        .frame(width: 2.0, height: h)
                 }
             }
-            .frame(height: 14, alignment: .center)
+            .frame(height: 15, alignment: .center)
         }
     }
 }
@@ -133,6 +135,7 @@ struct MediaExpandedView: View {
     let audioState: AudioStateSnapshot
     let onCommand: (MediaCommand) -> Void
     let onAudioAction: (NotchStore.AudioAction) -> Void
+    var onAdjustLyricsOffset: (TimeInterval) -> Void = { _ in }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -265,14 +268,7 @@ struct MediaExpandedView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             ForEach(lyrics.lines) { line in
                                 let isCurrent = lyrics.isSynced && line.id == activeIndex
-                                let textColor: Color = lyrics.isSynced
-                                    ? (isCurrent ? .white : .white.opacity(0.35))
-                                    : .white.opacity(0.82)
-                                Text(line.text)
-                                    .font(.system(size: 12, weight: isCurrent ? .semibold : .regular))
-                                    .foregroundStyle(textColor)
-                                    .scaleEffect(isCurrent ? 1.03 : 1.0, anchor: .leading)
-                                    .animation(.easeInOut(duration: 0.22), value: isCurrent)
+                                lyricLineView(line: line, isCurrent: isCurrent, isSynced: lyrics.isSynced, position: position)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .id(line.id)
                             }
@@ -287,16 +283,57 @@ struct MediaExpandedView: View {
                     }
                 }
 
-                Text(lyrics.sourceLabel)
-                    .font(.system(size: 8.5, weight: .semibold))
-                    .tracking(0.6)
-                    .foregroundStyle(.white.opacity(0.25))
+                HStack(spacing: 4) {
+                    Button("-0.5s") { onAdjustLyricsOffset(-0.5) }
+                        .buttonStyle(.plain)
+                    Button("+0.5s") { onAdjustLyricsOffset(0.5) }
+                        .buttonStyle(.plain)
+                    Text(lyrics.sourceLabel)
+                        .tracking(0.6)
+                        .foregroundStyle(.white.opacity(0.3))
+                }
+                .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.55))
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(.black.opacity(0.55), in: Capsule())
             } else {
                 Text("No synced lyrics")
                     .font(.system(size: 11.5))
                     .foregroundStyle(.white.opacity(0.35))
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func lyricLineView(
+        line: LRCLine,
+        isCurrent: Bool,
+        isSynced: Bool,
+        position: TimeInterval
+    ) -> some View {
+        if isCurrent, !line.words.isEmpty {
+            HStack(spacing: 0) {
+                ForEach(line.words) { word in
+                    let lit = position + 0.25 >= word.time
+                    Text(word.text)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(lit ? Color.white : Color.white.opacity(0.45))
+                        .shadow(color: lit ? .white.opacity(0.45) : .clear, radius: 4)
+                }
+            }
+            .scaleEffect(1.03, anchor: .leading)
+            .animation(.easeInOut(duration: 0.16), value: position)
+        } else {
+            let textColor: Color = isSynced
+                ? (isCurrent ? .white : .white.opacity(0.35))
+                : .white.opacity(0.82)
+            Text(line.text)
+                .font(.system(size: 12, weight: isCurrent ? .semibold : .regular))
+                .foregroundStyle(textColor)
+                .scaleEffect(isCurrent ? 1.03 : 1.0, anchor: .leading)
+                .animation(.easeInOut(duration: 0.22), value: isCurrent)
         }
     }
 

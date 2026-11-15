@@ -36,24 +36,39 @@ public struct NotchRootView: View {
     public var body: some View {
         let mode = store.mode
         let geometry = store.geometry
-        let showsEars = store.state.showsEars
-        let size = IslandLayout.size(for: mode, geometry: geometry, hasActiveAgents: showsEars)
+        let showsCustomStatEars = store.widgetConfig.isEnabled(.earsSystemStats)
+            && store.widgetConfig.notchDisplayMode == .fixed
+            && (store.widgetConfig.leftEarStat != .none || store.widgetConfig.rightEarStat != .none)
+        let showsEars = store.state.showsEars || showsCustomStatEars
+        let isFaceScanning = store.state.faceScanEar != nil
+        let size = IslandLayout.size(
+            for: mode,
+            geometry: geometry,
+            hasActiveAgents: showsEars,
+            isFaceScanning: isFaceScanning
+        )
         let radii = IslandLayout.radii(for: mode, geometry: geometry)
-        let shape = UnevenRoundedRectangle(topLeadingRadius: radii.top, bottomLeadingRadius: radii.bottom,
-                                           bottomTrailingRadius: radii.bottom, topTrailingRadius: radii.top,
-                                           style: .continuous)
+        let earRadius: CGFloat = geometry.kind == .hardware ? 8 : 0
+        let shape = NotchIslandShape(
+            topEarRadius: earRadius,
+            topCornerRadius: radii.top,
+            bottomCornerRadius: radii.bottom
+        )
 
         content(mode: mode, geometry: geometry)
             .frame(width: size.width, height: size.height, alignment: .top)
-            .background(.black, in: shape)
+            .background(.black.opacity(store.widgetConfig.islandOpacity), in: shape)
             .clipShape(shape)
             .overlay {
-                if let focus = store.state.focusSession {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        let progress = focus.progress(at: context.date)
+                if store.widgetConfig.isEnabled(.edgeGlow) {
+                    if case .toast(let toast) = mode {
                         shape
-                            .trim(from: 0, to: CGFloat(progress))
-                            .stroke(Toast.Tint.info.color.opacity(0.85), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                            .stroke(toast.tint.color.opacity(0.55), lineWidth: 1.5)
+                            .blur(radius: 1.2)
+                    } else if !store.state.agentSessions.isEmpty {
+                        shape
+                            .stroke(Toast.Tint.info.color.opacity(0.45), lineWidth: 1.5)
+                            .blur(radius: 1.2)
                     }
                 }
             }
@@ -71,7 +86,10 @@ public struct NotchRootView: View {
             switch mode {
             case .collapsed:
                 let earSpacerWidth = geometry.kind == .hardware ? geometry.baseSize.width : geometry.baseSize.width - 12
-                if store.state.hasActiveAgents {
+                if let faceScan = store.state.faceScanEar {
+                    FaceScanEarsView(notchWidth: earSpacerWidth, status: faceScan)
+                        .transition(.islandContent)
+                } else if store.state.hasActiveAgents {
                     CollapsedEarsView(
                         notchWidth: earSpacerWidth,
                         workingCount: store.state.workingAgentCount,
@@ -82,12 +100,19 @@ public struct NotchRootView: View {
                           MeetingDetector.isWithinCountdownWindow(meeting) {
                     MeetingEarsView(notchWidth: earSpacerWidth, meeting: meeting)
                         .transition(.islandContent)
-                } else if let focus = store.state.focusSession {
-                    FocusEarsView(notchWidth: earSpacerWidth, session: focus)
-                        .transition(.islandContent)
                 } else if let track = store.state.nowPlaying, track.isPlaying {
                     MediaEarsView(notchWidth: earSpacerWidth, track: track)
                         .transition(.islandContent)
+                } else if store.widgetConfig.isEnabled(.earsSystemStats),
+                          store.widgetConfig.notchDisplayMode == .fixed,
+                          store.widgetConfig.leftEarStat != .none || store.widgetConfig.rightEarStat != .none {
+                    SystemStatEarsView(
+                        notchWidth: earSpacerWidth,
+                        leftStat: store.widgetConfig.leftEarStat,
+                        rightStat: store.widgetConfig.rightEarStat,
+                        pulse: store.state.systemPulse.last
+                    )
+                    .transition(.islandContent)
                 } else {
                     Color.clear
                 }
@@ -101,6 +126,7 @@ public struct NotchRootView: View {
                     expandedTab: store.state.expandedTab,
                     sessions: store.state.agentSessions,
                     servers: store.state.devServers,
+                    dockerContainers: store.state.dockerContainers,
                     stagedFiles: store.state.stagedFiles,
                     gitStatus: store.state.gitStatus,
                     runHistory: store.state.runHistory,
@@ -114,12 +140,22 @@ public struct NotchRootView: View {
                     notesPayload: store.state.notesPayload,
                     androidDrop: store.state.androidDrop,
                     latestClipboardText: latestClip,
+                    latestBuildResult: store.state.latestBuildResult,
+                    agentConflicts: store.state.agentConflicts,
+                    worklogEntries: store.state.worklogEntries,
+                    worklogRange: store.state.worklogRange,
                     onSelectTab: { store.send(.setExpandedTab($0)) },
                     onClearFinished: { store.send(.clearFinishedAgents) },
                     onClearRunHistory: { store.send(.clearRunHistory) },
                     onServerAction: { store.perform($0) },
                     onMediaCommand: { store.performMedia($0) },
                     onAudioAction: { store.performAudio($0) },
+                    onAdjustLyricsOffset: { store.adjustLyricsOffset($0) },
+                    onAirDropFiles: { store.airDropStagedFiles() },
+                    onDockerAction: { store.performDocker($0) },
+                    onBuildAction: { store.performBuild($0) },
+                    onSelectWorklogRange: { store.selectWorklogRange($0) },
+                    onClearWorklog: { store.clearWorklog() },
                     onQuickTool: { store.performQuickTool($0) },
                     onJoinMeeting: { NSWorkspace.shared.open($0) },
                     onStartFocus: { store.startFocus(minutes: $0) },
@@ -147,7 +183,7 @@ public struct NotchRootView: View {
                     clearance: geometry.cameraClearance,
                     onTap: tapHandler
                 )
-                    .id(toast.id) // swap content between queued toasts without morphing text
+                    .id(toast.key ?? toast.id.uuidString) // preserve view identity for keyed in-place updates (no flicker)
                     .transition(.islandContent)
             case .errorLens(let title, let log):
                 ErrorLensView(

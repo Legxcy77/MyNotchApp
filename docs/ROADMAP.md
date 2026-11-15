@@ -50,10 +50,18 @@ Legend: `[x]` done · `[ ]` todo · (U) unit-tested · (V) verified by eye on a 
 - [x] **A5 System Pulse**: CPU/RAM/net sparkline in the expanded view. Alert when a process is >90% CPU for 30s, with a Kill action. Gate: (V).
 - [x] **A6 Quick AI**: hotkey opens a prompt in the island and streams answers from the Gemini API (key in Keychain). Presets: translate TH↔EN, explain error (from D1), explain regex/clipboard. Gate: (V).
 
-## Tier B
-- [ ] **B1 Volume/Brightness HUD** in the island (CGEventTap on media keys, needs Accessibility). Gate: (V).
+## Tier B & Ultimate Upgrade Plan (`U1`–`U8`)
+> **Next Agent Handoff:** Read [docs/ULTIMATE_UPGRADE_PLAN.md](ULTIMATE_UPGRADE_PLAN.md) (alongside [docs/CANOPY_ARCHITECTURE_ANALYSIS.md](CANOPY_ARCHITECTURE_ANALYSIS.md) and [docs/GITHUB_OPEN_SOURCE_ARSENAL.md](GITHUB_OPEN_SOURCE_ARSENAL.md)) for the full 8-phase Master Upgrade specification (`U1`–`U8`, which also covers `B1` and `B3`). Pick up the first unchecked `[ ] Phase U*` item in `docs/ULTIMATE_UPGRADE_PLAN.md`.
+
+- [ ] **U1 `SkyLightLockSpaceBridge` (Real macOS Lock Screen Overlay)**: Float the 3-mode media/lyrics card + Dev Pill + Face ID button over the real macOS `loginwindow` (`com.apple.screenIsLocked`) without covering the top clock or bottom Touch ID / password field. Gate: (U) + (V).
+- [ ] **U2 OpenCV Zoo `SFace.mlmodelc` (128-D Deep Face Recognition)**: Upgrade `FaceAuthService` from 24-D geometric landmarks to 128-D neural face embeddings with L2-normalized cosine similarity + Vision blink/yaw liveness. Gate: (U) + (V).
+- [ ] **U3 Word-by-Word Karaoke Lyrics + NetEase Cloud Music**: Word-level timestamp parser (`[mm:ss.xx]<word>`) with gradient fill + glow, plus NetEase Cloud Music fallback for Asian/bilingual tracks. Gate: (U) + (V).
+- [ ] **U4 Apple Silicon Hardware Telemetry (`AppleSiliconTelemetryService`)**: SMC/IOReport CPU/GPU Watts (`PSTR`), SoC temperatures, Fan RPM, and 1-click RAM Purge inside the Notch `Tools` tab. Gate: (U) + (V).
+- [ ] **U5 / B1 Volume & Brightness Notch HUD**: Suppress default macOS gray OSD via `OSDUIHelper` + `CGEventTap` on media/brightness keys and animate liquid wings from the Notch. Gate: (U) + (V).
+- [ ] **U6 AirPods & Bluetooth Battery Toast + Real-Time Audio Spectrum**: Instant L/R/Case battery toast on Bluetooth connect + 6-band `vDSP` FFT audio spectrum visualizer. Gate: (U) + (V).
+- [ ] **U7 One-Click AirDrop Zone + Browser Media Pause Guard**: Drag-and-drop AirDrop zone via `NSSharingService(named: .sendViaAirDrop)` + route media keys only to active music player (`Music`/`Spotify`). Gate: (U) + (V).
+- [ ] **U8 / B3 Docker & Process Resource Glance + Live Activity SDK**: Per-port CPU/RAM + Docker container status/restart/tail logs via `/var/run/docker.sock` + `mynotch progress` CLI. Gate: (U) + (V).
 - [ ] **B2 Phone Web Drop**: `GET /drop` serves an upload page and the menu shows a QR code. Uploads land in the File Tray. LAN only, one-time token. Gate: (V) from an Android phone.
-- [ ] **B3 Docker Glance**: containers via `/var/run/docker.sock` with status, restart, and tail logs (reuses D4). Gate: (V).
 
 ## Changelog
 - 2026-11-15: F1–F4 implemented (NotchKit split, geometry, hit-testing + menu bar, reducer/store with tests). 17/17 tests green, app launches. F2/F3 verified by eye by owner.
@@ -81,3 +89,8 @@ Legend: `[x]` done · `[ ]` todo · (U) unit-tested · (V) verified by eye on a 
 - 2026-11-15: A4 implemented (`GitHubPulseParser`, `GitHubPulseMonitor` polling `gh api` every 60s for open PRs & review requests, toast with `openURL` on state transitions only). 71/71 tests green. A4 (V) pending.
 - 2026-11-15: A5 implemented (`SystemPulseParser`, `SystemPulseTracker`, `SystemPulseMonitor` using Mach `host_statistics`/`host_statistics64`, CPU sparkline + RAM in `ExpandedView`, >90% CPU for 30s alert with Kill action). 72/72 tests green. A5 (V) pending.
 - 2026-11-15: A6 implemented (`GeminiClient` SSE streaming + `GeminiKeychain`, `HotKeyMonitor` `⌥A`, `QuickAIView` with TH↔EN / Explain Error / Explain Regex presets, wired to D1 Error Lens `Ask AI`). 73/73 tests green. A6 (V) pending.
+- 2026-11-15: Multi-language native script lyrics (`LRCLibClient`), Safari YouTube Music lyrics fallback (`SafariYouTubeMusicLyricsClient`), 16-segment `FaceAuthService` + `~/.mynotch/face_profile.json` (`0600`), 3-mode `LockScreenView` with 4 instant safety escape hatches (`Esc`, `✕ Esc`, `⌥⌘L`, `⌥⌘U`, Notch `Tools` controls), and Master Upgrade Blueprints (`docs/CANOPY_ARCHITECTURE_ANALYSIS.md`, `docs/GITHUB_OPEN_SOURCE_ARSENAL.md`, `docs/ULTIMATE_UPGRADE_PLAN.md` covering `U1`–`U8`). 82/82 tests green.
+- 2026-11-15: Phases `U1`–`U8` implemented (`SkyLightBridge` + `LockScreenPanel` + `SystemLockStateMonitor`, `FaceAligner` 112×112 roll-normalized crop, `NetEaseLyricsClient` + word-by-word karaoke + `±0.5s` per-track offset in `LyricsCache`, `NotchIslandShape` Bezier ears + `SwipeGestureRecognizer`, `MediaKeyHUDMonitor` + `Toast.progress` HUD, `AirPodsBatteryMonitor` + 6-band spectrum bars, one-click `AirDrop` in File Tray, `DockerGlanceMonitor` over Unix socket). 98/98 tests in 32 suites green, 0 warnings; `(V)` live checks pending on the owner's machine.
+
+
+

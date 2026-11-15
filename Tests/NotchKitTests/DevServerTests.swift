@@ -52,5 +52,13 @@ import Testing
         #expect(servers[0].pid == 100)
         #expect(servers[0].port == 3000)
     }
+
+    @Test func terminationSafetyGuardRejectsSystemAndSelfPIDs() {
+        #expect(!DevServerMonitor.isSafeToTerminate(pid: -10, selfPID: 500))
+        #expect(!DevServerMonitor.isSafeToTerminate(pid: 0, selfPID: 500))
+        #expect(!DevServerMonitor.isSafeToTerminate(pid: 1, selfPID: 500))
+        #expect(!DevServerMonitor.isSafeToTerminate(pid: 500, selfPID: 500))
+        #expect(DevServerMonitor.isSafeToTerminate(pid: 501, selfPID: 500))
+    }
 }
 
