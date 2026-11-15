@@ -85,7 +85,7 @@ public struct GeminiClient: Sendable {
         guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw GeminiError.missingAPIKey
         }
-        guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:streamGenerateContent?alt=sse&key=\(apiKey)") else {
+        guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:streamGenerateContent?alt=sse&key=\(apiKey)") else {
             return
         }
 
@@ -98,10 +98,7 @@ public struct GeminiClient: Sendable {
             ],
             "contents": [["parts": [["text": prompt]]]],
             "generationConfig": [
-                "maxOutputTokens": 1024,
-                "thinkingConfig": [
-                    "thinkingLevel": "low"
-                ]
+                "maxOutputTokens": 1024
             ]
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
