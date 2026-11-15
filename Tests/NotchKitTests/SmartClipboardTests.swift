@@ -77,3 +77,4 @@ import Testing
         #expect(SmartClipboardDetector.detect("just some normal text") == nil)
     }
 }
+

@@ -76,6 +76,7 @@ public struct NotchRootView: View {
                     sessions: store.state.agentSessions,
                     servers: store.state.devServers,
                     stagedFiles: store.state.stagedFiles,
+                    gitStatus: store.state.gitStatus,
                     onClearFinished: { store.send(.clearFinishedAgents) },
                     onServerAction: { store.perform($0) },
                     onRemoveFile: { store.send(.removeStagedFile($0)) },

@@ -26,6 +26,7 @@ public struct NotchState: Equatable, Sendable {
     public var devServers: [DevServer] = []
     public var stagedFiles: [URL] = []
     public var clipboard = ClipboardHistory()
+    public var gitStatus: GitStatus?
 
     public init() {}
 
@@ -69,6 +70,7 @@ public enum NotchEvent: Sendable, Equatable {
     case setClipboardOpen(Bool)
     case openErrorLens(title: String, log: String)
     case closeErrorLens
+    case gitStatusUpdated(GitStatus?)
 }
 
 public enum NotchEffect: Sendable, Equatable {
@@ -135,6 +137,9 @@ public enum NotchReducer {
             return []
         case .closeErrorLens:
             s.activeError = nil
+            return []
+        case .gitStatusUpdated(let status):
+            s.gitStatus = status
             return []
         }
     }

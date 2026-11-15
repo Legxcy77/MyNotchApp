@@ -30,7 +30,7 @@ Legend: `[x]` done · `[ ]` todo · (U) unit-tested · (V) verified by eye on a 
 ## Tier D: extra dev features (owner approved "all")
 - [x] **D1 Error Lens**: `n <cmd>` wrapper (in notch.zsh) tees stderr and, on failure, sends the last 30 lines. The failure toast expands to a monospaced error panel with **Copy** and **Ask AI** (sends to A6). Gate: (V) `n npx tsc` with an error shows the error lines.
 - [x] **D2 Smart Clipboard**: detect JWT / JSON / Unix epoch / base64 / UUID / hex color / URL-encoded text in the latest copy. Offer one-click actions (decode JWT header+payload, pretty-print JSON, epoch→local time, color swatch). Gate: (U) detectors with fixtures.
-- [ ] **D3 Git Glance**: for the frontmost terminal/editor cwd (from S1/S2 reports or the last `/activity` cwd), show branch, dirty count, and ahead/behind. Use FSEvents on `.git/HEAD` + index, no polling. Gate: (V) edit a file and the count updates.
+- [x] **D3 Git Glance**: for the frontmost terminal/editor cwd (from S1/S2 reports or the last `/activity` cwd), show branch, dirty count, and ahead/behind. Use FSEvents on `.git/HEAD` + index, no polling. Gate: (V) edit a file and the count updates.
 - [ ] **D4 Log Pin**: pin a file path or a command (`docker logs -f api`). Regex rules (default `ERROR|Exception|FATAL`) flash a red toast with the matching line. Gate: (V) `echo ERROR >> pinned.log` flashes.
 - [ ] **D5 Command Palette**: hotkey ⌥Space opens a fuzzy list of package.json scripts / Makefile targets / `dotnet` tasks for the last active repo. Run in background; the result goes to S1-style toasts. Gate: (V) run `npm test` from the palette.
 - [ ] **D6 Run Timeline**: history of the last 30 commands/agent runs with duration, exit status, and cwd, in an expanded tab. Gate: (V).
@@ -67,4 +67,5 @@ Legend: `[x]` done · `[ ]` todo · (U) unit-tested · (V) verified by eye on a 
 - 2026-11-15: S4 implemented (`ClipboardHistory`, `ClipboardMonitor` 0.5s poll + `ConcealedType` skip + `CGEvent` ⌘V paste, `HotKeyMonitor` `⌥⌘V`, `ClipboardView` searchable list). 42/42 tests green, bundle rebuilt. S5 (V) verified by owner; S4 (V) pending.
 - 2026-11-15: D1 implemented (`Toast.errorLog`, `NotchMode.errorLens`, `ErrorLensView` with Copy & Ask AI, `--error-file` in `scripts/notch`, `n <cmd>` wrapper in `scripts/notch.zsh`). 44/44 tests green, bundle rebuilt. S4 (V) verified by owner; D1 (V) pending.
 - 2026-11-15: D2 implemented (`SmartClipboardDetector` for JWT, JSON, Unix epoch, hex color + swatch, UUID, URL-encoded, Base64; one-click copy action in `ClipboardView`). 51/51 tests green, bundle rebuilt. D1 (V) verified by owner.
+- 2026-11-15: D3 implemented (`GitStatusParser`, `GitGlanceMonitor` via `FSEventStream` on repo + `.git` with zero polling, branch/dirty/ahead-behind row in `ExpandedView`). 53/53 tests green, bundle rebuilt. D2 verified; D3 (V) pending.
 

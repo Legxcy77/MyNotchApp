@@ -25,6 +25,7 @@ final class AppCoordinator {
     private var screenshots: ScreenshotWatcher?
     private var clipboard: ClipboardMonitor?
     private var hotKey: HotKeyMonitor?
+    private var gitGlance: GitGlanceMonitor?
     private var isMenuOpen = false
 
     init() {
@@ -115,6 +116,14 @@ final class AppCoordinator {
         startEventBus()
         startScreenshotWatcher()
         startClipboard()
+        startGitGlance()
+    }
+
+    private func startGitGlance() {
+        let monitor = GitGlanceMonitor { [weak store] status in
+            store?.send(.gitStatusUpdated(status))
+        }
+        gitGlance = monitor
     }
 
     private func startClipboard() {
@@ -158,6 +167,9 @@ final class AppCoordinator {
                     store.post(toast)
                 case .activity(let ev):
                     store.send(.recordActivity(ev, at: .now))
+                    if let cwd = ev.cwd, !cwd.isEmpty {
+                        self.gitGlance?.watch(cwd: cwd)
+                    }
                 }
             }
             try server.start()

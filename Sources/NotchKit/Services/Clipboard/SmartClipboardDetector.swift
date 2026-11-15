@@ -193,3 +193,4 @@ public enum SmartClipboardDetector {
         return String(data: pretty, encoding: .utf8)
     }
 }
+

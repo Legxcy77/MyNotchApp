@@ -96,6 +96,7 @@ struct ExpandedView: View {
     let sessions: [AgentSession]
     let servers: [DevServer]
     let stagedFiles: [URL]
+    let gitStatus: GitStatus?
     let onClearFinished: () -> Void
     let onServerAction: (NotchStore.DevServerAction) -> Void
     let onRemoveFile: (URL) -> Void
@@ -126,11 +127,35 @@ struct ExpandedView: View {
                 .foregroundStyle(.white)
             }
 
-            if sessions.isEmpty && servers.isEmpty && stagedFiles.isEmpty {
+            if sessions.isEmpty && servers.isEmpty && stagedFiles.isEmpty && gitStatus == nil {
                 Text("All quiet. Builds, agents and servers will show up here.")
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.4))
             } else {
+                if let git = gitStatus {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.triangle.branch")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Toast.Tint.info.color)
+                        Text(git.repoName)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.8))
+                        Text(git.branch)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.55))
+                        if git.dirtyCount > 0 {
+                            Text("\(git.dirtyCount) dirty")
+                                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(Toast.Tint.waiting.color)
+                        }
+                        if git.ahead > 0 || git.behind > 0 {
+                            Text("↑\(git.ahead) ↓\(git.behind)")
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.white.opacity(0.45))
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
                 if !sessions.isEmpty {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         VStack(alignment: .leading, spacing: 5) {
