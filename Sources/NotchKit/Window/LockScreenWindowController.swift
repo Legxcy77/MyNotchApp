@@ -11,6 +11,7 @@ public final class LockScreenWindowController {
     private var lockWindows: [NSWindow] = []
     public private(set) var isLocked = false
     private var biometricContext: LAContext?
+    private var keyMonitor: Any?
     public var autoLockOnSleepWake: Bool {
         didSet {
             UserDefaults.standard.set(autoLockOnSleepWake, forKey: Self.autoLockDefaultsKey)
@@ -29,15 +30,12 @@ public final class LockScreenWindowController {
         self.store = store
         self.faceAuth = faceAuth
         self.onMediaCommand = onMediaCommand
-        if UserDefaults.standard.object(forKey: Self.autoLockDefaultsKey) == nil {
-            self.autoLockOnSleepWake = true
-        } else {
-            self.autoLockOnSleepWake = UserDefaults.standard.bool(forKey: Self.autoLockDefaultsKey)
-        }
+        self.autoLockOnSleepWake = UserDefaults.standard.bool(forKey: Self.autoLockDefaultsKey)
         installWorkspaceObservers()
     }
 
     isolated deinit {
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         let nc = NSWorkspace.shared.notificationCenter
         if let sleepObserver { nc.removeObserver(sleepObserver) }
         if let screenSleepObserver { nc.removeObserver(screenSleepObserver) }
@@ -70,7 +68,7 @@ public final class LockScreenWindowController {
 
     public func toggleLock() {
         if isLocked {
-            authenticateWithSystem()
+            unlock()
         } else {
             lock()
         }
@@ -81,7 +79,9 @@ public final class LockScreenWindowController {
         isLocked = true
         faceAuth.refreshPermissionStatus()
 
-        NSApp.presentationOptions = [.hideDock, .hideMenuBar, .disableProcessSwitching]
+        // Keep Cmd+Tab and Force Quit available so the user can never be trapped
+        NSApp.presentationOptions = [.hideDock, .hideMenuBar]
+        installEscapeKeyMonitor()
 
         let screens = NSScreen.screens
         let primary = screens.first(where: { $0.frame.origin == .zero }) ?? NSScreen.main ?? screens.first
@@ -110,6 +110,9 @@ public final class LockScreenWindowController {
                     },
                     onRetryFaceScan: { [weak self] in
                         self?.beginFaceVerification()
+                    },
+                    onEmergencyClose: { [weak self] in
+                        self?.unlock()
                     }
                 )
                 .frame(width: screen.frame.width, height: screen.frame.height)
@@ -137,6 +140,10 @@ public final class LockScreenWindowController {
     public func unlock() {
         guard isLocked else { return }
         isLocked = false
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+            self.keyMonitor = nil
+        }
         biometricContext?.invalidate()
         biometricContext = nil
         faceAuth.stop()
@@ -154,6 +161,19 @@ public final class LockScreenWindowController {
             tint: .success,
             duration: .seconds(2)
         ))
+    }
+
+    private func installEscapeKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 { // Escape key always exits Lock Screen safely
+                Task { @MainActor [weak self] in
+                    self?.unlock()
+                }
+                return nil
+            }
+            return event
+        }
     }
 
     private func beginFaceVerification() {

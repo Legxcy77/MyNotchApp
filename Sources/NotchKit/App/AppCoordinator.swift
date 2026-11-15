@@ -381,6 +381,23 @@ final class AppCoordinator {
         case .openClipboard:
             store.send(.hoverChanged(false))
             store.send(.setClipboardOpen(true))
+        case .lockScreen:
+            store.send(.hoverChanged(false))
+            lockScreenController?.lock()
+        case .toggleAutoLock:
+            guard let controller = lockScreenController else { return }
+            controller.autoLockOnSleepWake.toggle()
+            let on = controller.autoLockOnSleepWake
+            store.post(Toast(
+                title: on ? "Auto-Lock ON" : "Auto-Lock OFF",
+                subtitle: on ? "Locks on sleep/wake" : "Manual lock only (⌥⌘L)",
+                symbol: on ? "lock.rotation" : "lock.open",
+                tint: on ? .info : .neutral,
+                duration: .seconds(2.5)
+            ))
+        case .setupFaceUnlock:
+            store.send(.hoverChanged(false))
+            showFaceEnrollmentWindow()
         }
     }
 
@@ -564,7 +581,10 @@ final class AppCoordinator {
             store?.send(.toggleQuickAI)
         }
         hk.registerOptionCommandL { [weak self] in
-            self?.lockScreenController?.lock()
+            self?.lockScreenController?.toggleLock()
+        }
+        hk.registerOptionCommandU { [weak self] in
+            self?.lockScreenController?.unlock()
         }
         hotKey = hk
     }

@@ -31,6 +31,9 @@ public final class NotchStore {
         case openCommandPalette
         case openQuickAI
         case openClipboard
+        case lockScreen
+        case toggleAutoLock
+        case setupFaceUnlock
     }
 
     public enum AudioAction: Sendable {

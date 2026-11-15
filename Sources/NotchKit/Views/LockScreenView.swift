@@ -13,6 +13,7 @@ public struct LockScreenView: View {
     let onMediaCommand: (MediaCommand) -> Void
     let onAuthenticateWithSystem: () -> Void
     let onRetryFaceScan: () -> Void
+    let onEmergencyClose: () -> Void
 
     @State private var playerMode: LockPlayerPresentation = .albumFocus
     @Namespace private var playerNamespace
@@ -22,13 +23,15 @@ public struct LockScreenView: View {
         faceAuth: FaceAuthService,
         onMediaCommand: @escaping (MediaCommand) -> Void,
         onAuthenticateWithSystem: @escaping () -> Void,
-        onRetryFaceScan: @escaping () -> Void
+        onRetryFaceScan: @escaping () -> Void,
+        onEmergencyClose: @escaping () -> Void = {}
     ) {
         self.store = store
         self.faceAuth = faceAuth
         self.onMediaCommand = onMediaCommand
         self.onAuthenticateWithSystem = onAuthenticateWithSystem
         self.onRetryFaceScan = onRetryFaceScan
+        self.onEmergencyClose = onEmergencyClose
     }
 
     private var track: NowPlayingTrack? {
@@ -64,6 +67,24 @@ public struct LockScreenView: View {
                     .padding(.bottom, 48)
             }
             .padding(.horizontal, 48)
+        }
+        .overlay(alignment: .topTrailing) {
+            Button(action: onEmergencyClose) {
+                HStack(spacing: 5) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("Esc")
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                }
+                .foregroundStyle(.white.opacity(0.65))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial, in: Capsule())
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 20)
+            .padding(.trailing, 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()

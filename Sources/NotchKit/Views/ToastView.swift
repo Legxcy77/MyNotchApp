@@ -626,6 +626,11 @@ private struct ToolsTabView: View {
                     toolTile("terminal", "Palette") { onAction(.openCommandPalette) }
                     toolTile("doc.on.clipboard", "Clips") { onAction(.openClipboard) }
                 }
+                HStack(spacing: 6) {
+                    toolTile("lock.fill", "Lock") { onAction(.lockScreen) }
+                    toolTile("lock.rotation", "Auto-Lock") { onAction(.toggleAutoLock) }
+                    toolTile("faceid", "Face ID") { onAction(.setupFaceUnlock) }
+                }
 
                 if let text = latestClipboardText, !text.isEmpty {
                     let stats = TextTransformer.stats(for: text)

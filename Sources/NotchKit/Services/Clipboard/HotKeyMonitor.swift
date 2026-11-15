@@ -50,6 +50,10 @@ public final class HotKeyMonitor {
         register(keyCode: UInt32(kVK_ANSI_L), modifiers: UInt32(optionKey | cmdKey), handler: handler)
     }
 
+    public func registerOptionCommandU(_ handler: @escaping @MainActor () -> Void) {
+        register(keyCode: UInt32(kVK_ANSI_U), modifiers: UInt32(optionKey | cmdKey), handler: handler)
+    }
+
     private func ensureEventHandlerInstalled() {
         guard eventHandlerRef == nil else { return }
         var eventType = EventTypeSpec(
