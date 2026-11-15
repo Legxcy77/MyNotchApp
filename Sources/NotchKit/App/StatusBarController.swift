@@ -7,6 +7,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let launchAtLogin: LaunchAtLoginService
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let menu = NSMenu()
+    var onMenuVisibilityChanged: (@MainActor (Bool) -> Void)?
 
     init(store: NotchStore, window: NotchWindowController, launchAtLogin: LaunchAtLoginService) {
         self.store = store
@@ -18,6 +19,14 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         item.button?.image = image
         menu.delegate = self
         item.menu = menu
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        onMenuVisibilityChanged?(true)
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        onMenuVisibilityChanged?(false)
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -54,6 +63,27 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         let debugItem = NSMenuItem(title: "Test Toasts", action: nil, keyEquivalent: "")
         debugItem.submenu = debug
         menu.addItem(debugItem)
+
+        let serversMenu = NSMenu()
+        if store.state.devServers.isEmpty {
+            let empty = NSMenuItem(title: "No listening ports", action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            serversMenu.addItem(empty)
+        } else {
+            for s in store.state.devServers {
+                let sub = NSMenu()
+                sub.addItem(ActionMenuItem(title: "Open localhost:\(s.port)") { [store] in store.perform(.open(s)) })
+                sub.addItem(ActionMenuItem(title: "Copy URL") { [store] in store.perform(.copy(s)) })
+                sub.addItem(.separator())
+                sub.addItem(ActionMenuItem(title: "Kill (PID \(s.pid))") { [store] in store.perform(.kill(s)) })
+                let row = NSMenuItem(title: ":\(s.port)  \(s.label)", action: nil, keyEquivalent: "")
+                row.submenu = sub
+                serversMenu.addItem(row)
+            }
+        }
+        let serversItem = NSMenuItem(title: "Dev Servers", action: nil, keyEquivalent: "")
+        serversItem.submenu = serversMenu
+        menu.addItem(serversItem)
 
         menu.addItem(.separator())
         let launchItem = ActionMenuItem(

@@ -14,6 +14,7 @@ public struct NotchState: Equatable, Sendable {
     /// Sorted by priority (desc), FIFO within a priority.
     public var pendingToasts: [Toast] = []
     public var agentSessions: [AgentSession] = []
+    public var devServers: [DevServer] = []
 
     public init() {}
 
@@ -46,6 +47,7 @@ public enum NotchEvent: Sendable, Equatable {
     case dismissToast
     case recordActivity(ActivityEvent, at: Date)
     case clearFinishedAgents
+    case devServersUpdated([DevServer])
 }
 
 public enum NotchEffect: Sendable, Equatable {
@@ -76,6 +78,9 @@ public enum NotchReducer {
             return recordActivity(ev, at: now, into: &s)
         case .clearFinishedAgents:
             s.agentSessions.removeAll { !$0.isActive }
+            return []
+        case .devServersUpdated(let servers):
+            s.devServers = servers
             return []
         }
     }

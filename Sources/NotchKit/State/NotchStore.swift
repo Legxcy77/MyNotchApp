@@ -11,8 +11,16 @@ public final class NotchStore {
         ScreenMetrics(frame: CGRect(x: 0, y: 0, width: 1512, height: 982), safeAreaTop: 0)
     )
 
+    public enum DevServerAction: Sendable {
+        case open(DevServer)
+        case copy(DevServer)
+        case kill(DevServer)
+    }
+
     @ObservationIgnored public var hoverExitDelay: Duration = .milliseconds(180)
     @ObservationIgnored public var onAction: (@MainActor (Toast.Action) -> Void)?
+    @ObservationIgnored public var onServerAction: (@MainActor (DevServerAction) -> Void)?
+    @ObservationIgnored public var onModeChanged: (@MainActor (NotchMode) -> Void)?
     @ObservationIgnored private var expiryTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var hoverExitTask: Task<Void, Never>?
 
@@ -21,11 +29,20 @@ public final class NotchStore {
     public var mode: NotchMode { state.mode }
 
     public func send(_ event: NotchEvent) {
+        let oldMode = state.mode
         let effects = NotchReducer.reduce(&state, event)
         effects.forEach(run)
+        let newMode = state.mode
+        if newMode != oldMode {
+            onModeChanged?(newMode)
+        }
     }
 
     public func post(_ toast: Toast) { send(.postToast(toast)) }
+
+    public func perform(_ action: DevServerAction) {
+        onServerAction?(action)
+    }
 
     public func activate(_ toast: Toast) {
         guard let action = toast.action else { return }

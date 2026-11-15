@@ -86,14 +86,16 @@ struct CollapsedEarsView: View {
 struct ExpandedView: View {
     let clearance: CGFloat
     let sessions: [AgentSession]
+    let servers: [DevServer]
     let onClearFinished: () -> Void
+    let onServerAction: (NotchStore.DevServerAction) -> Void
 
     private var hasFinished: Bool {
         sessions.contains { !$0.isActive }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             TimelineView(.everyMinute) { context in
                 HStack(alignment: .firstTextBaseline) {
                     Text(context.date, format: .dateTime.hour().minute())
@@ -113,15 +115,25 @@ struct ExpandedView: View {
                 .foregroundStyle(.white)
             }
 
-            if sessions.isEmpty {
+            if sessions.isEmpty && servers.isEmpty {
                 Text("All quiet. Builds, agents and servers will show up here.")
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.4))
             } else {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(sessions.prefix(4)) { session in
-                            AgentSessionRow(session: session, now: context.date)
+                if !sessions.isEmpty {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        VStack(alignment: .leading, spacing: 5) {
+                            ForEach(sessions.prefix(3)) { session in
+                                AgentSessionRow(session: session, now: context.date)
+                            }
+                        }
+                    }
+                }
+
+                if !servers.isEmpty {
+                    VStack(alignment: .leading, spacing: 5) {
+                        ForEach(servers.prefix(3)) { server in
+                            DevServerRow(server: server, onAction: onServerAction)
                         }
                     }
                 }
@@ -131,7 +143,47 @@ struct ExpandedView: View {
         }
         .padding(.horizontal, 22)
         .padding(.top, clearance + 12)
-        .padding(.bottom, 16)
+        .padding(.bottom, 14)
+    }
+}
+
+private struct DevServerRow: View {
+    let server: DevServer
+    let onAction: (NotchStore.DevServerAction) -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(Toast.Tint.success.color)
+                .frame(width: 6, height: 6)
+
+            Text(":\(server.port)")
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.white)
+
+            Text(server.label)
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.5))
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 10) {
+                Button { onAction(.open(server)) } label: {
+                    Image(systemName: "arrow.up.forward")
+                }
+                Button { onAction(.copy(server)) } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                Button { onAction(.kill(server)) } label: {
+                    Image(systemName: "xmark.circle")
+                        .foregroundStyle(Toast.Tint.failure.color.opacity(0.8))
+                }
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.white.opacity(0.5))
+        }
     }
 }
 

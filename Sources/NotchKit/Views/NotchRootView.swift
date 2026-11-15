@@ -74,7 +74,9 @@ public struct NotchRootView: View {
                 ExpandedView(
                     clearance: geometry.cameraClearance,
                     sessions: store.state.agentSessions,
-                    onClearFinished: { store.send(.clearFinishedAgents) }
+                    servers: store.state.devServers,
+                    onClearFinished: { store.send(.clearFinishedAgents) },
+                    onServerAction: { store.perform($0) }
                 )
                 .transition(.islandContent)
             case .toast(let toast):

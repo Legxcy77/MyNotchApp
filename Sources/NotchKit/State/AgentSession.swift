@@ -48,3 +48,4 @@ public struct AgentSession: Equatable, Sendable, Identifiable {
         state == .working || state == .waiting
     }
 }
+
