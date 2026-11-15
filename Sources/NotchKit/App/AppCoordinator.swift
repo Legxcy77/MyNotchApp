@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 @MainActor
 public final class NotchAppDelegate: NSObject, NSApplicationDelegate {
@@ -43,6 +44,8 @@ final class AppCoordinator {
     private var focusTask: Task<Void, Never>?
     private var aiTask: Task<Void, Never>?
     private let geminiClient = GeminiClient()
+    private let faceAuthService = FaceAuthService()
+    private var faceEnrollmentWindow: NSWindow?
     private var isMenuOpen = false
 
     init() {
@@ -135,6 +138,9 @@ final class AppCoordinator {
         statusBar.onUnpinLog = { [weak self] in
             self?.logPin?.unpin()
             self?.store.post(Toast(title: "Unpinned log", symbol: "pin.slash", tint: .neutral, duration: .seconds(2)))
+        }
+        statusBar.onSetupFaceUnlock = { [weak self] in
+            self?.showFaceEnrollmentWindow()
         }
         store.onServerAction = { [weak self] action in
             switch action {
@@ -672,6 +678,36 @@ final class AppCoordinator {
                 priority: .high
             ))
         }
+    }
+
+    private func showFaceEnrollmentWindow() {
+        if let existing = faceEnrollmentWindow {
+            existing.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let service = faceAuthService
+        let view = FaceEnrollmentView(service: service) { [weak self] in
+            self?.faceEnrollmentWindow?.close()
+            self?.faceEnrollmentWindow = nil
+        }
+        let hosting = NSHostingController(rootView: view)
+        let panel = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 430),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        panel.titleVisibility = .hidden
+        panel.titlebarAppearsTransparent = true
+        panel.isReleasedWhenClosed = false
+        panel.backgroundColor = .black
+        panel.contentViewController = hosting
+        panel.center()
+        panel.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        faceEnrollmentWindow = panel
     }
 }
 

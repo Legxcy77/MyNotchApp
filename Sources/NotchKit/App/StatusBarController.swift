@@ -11,6 +11,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     var onMenuVisibilityChanged: (@MainActor (Bool) -> Void)?
     var onPinLogFile: (@MainActor (String) -> Void)?
     var onUnpinLog: (@MainActor () -> Void)?
+    var onSetupFaceUnlock: (@MainActor () -> Void)?
 
     init(store: NotchStore, window: NotchWindowController, launchAtLogin: LaunchAtLoginService, feedback: FeedbackService) {
         self.store = store
@@ -116,6 +117,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(logItem)
 
         menu.addItem(.separator())
+        menu.addItem(ActionMenuItem(title: "Setup Face Unlock…") { [weak self] in
+            self?.onSetupFaceUnlock?()
+        })
         menu.addItem(ActionMenuItem(title: "Sound on Toasts", on: feedback.isSoundEnabled) { [feedback] in
             feedback.isSoundEnabled.toggle()
         })
