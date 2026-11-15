@@ -167,6 +167,10 @@ public struct LRCLibClient: Sendable {
             if let fallback = try await searchFallback(query: cleaned.searchQuery, duration: duration) {
                 return fallback
             }
+            if cleaned.searchQuery != cleaned.track,
+               let trackOnly = try await searchFallback(query: cleaned.track, duration: duration) {
+                return trackOnly
+            }
             throw LRCLibError.notFound
         default:
             throw LRCLibError.httpError(http.statusCode)
