@@ -208,6 +208,9 @@ struct ExpandedView: View {
     var agentConflicts: [AgentConflict] = []
     var worklogEntries: [WorklogEntry] = []
     var worklogRange: WorklogRange = .today
+    var releaseReadiness: ReleaseReadinessReport? = nil
+    var changeImpact: ChangeImpactReport? = nil
+    var envGuardReport: EnvGuardReport? = nil
     let onSelectTab: (ExpandedTab) -> Void
     let onClearFinished: () -> Void
     let onClearRunHistory: () -> Void
@@ -435,6 +438,41 @@ struct ExpandedView: View {
                                     if git.dirtyCount > 0 {
                                         Text("\(git.dirtyCount)M")
                                             .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                            .foregroundStyle(Toast.Tint.waiting.color)
+                                    }
+                                    if let impact = changeImpact, !impact.impacts.isEmpty {
+                                        Text(impact.riskLevel.rawValue.uppercased())
+                                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                            .foregroundStyle(impact.riskLevel >= .high ? Toast.Tint.failure.color : Toast.Tint.waiting.color)
+                                    }
+                                }
+                            }
+                            if let readiness = releaseReadiness {
+                                let tint: Toast.Tint = switch readiness.status {
+                                case .ready: .success
+                                case .needsAttention: .waiting
+                                case .blocked: .failure
+                                case .unknown: .neutral
+                                }
+                                HStack(spacing: 6) {
+                                    Image(systemName: readiness.status == .ready ? "checkmark.seal.fill" : (readiness.status == .blocked ? "xmark.seal.fill" : "exclamationmark.triangle.fill"))
+                                        .font(.system(size: 10.5, weight: .semibold))
+                                        .foregroundStyle(tint.color)
+                                    let passedCount = readiness.checks.count(where: { $0.state == .passed })
+                                    let statusLabel = switch readiness.status {
+                                    case .ready: "Release Ready"
+                                    case .needsAttention: "Needs Attention"
+                                    case .blocked: "Release Blocked"
+                                    case .unknown: "Release Unknown"
+                                    }
+                                    Text("\(statusLabel) · \(passedCount)/\(readiness.checks.count)")
+                                        .font(.system(size: 10.5, weight: .medium))
+                                        .foregroundStyle(.white.opacity(0.75))
+                                        .lineLimit(1)
+                                    if let env = envGuardReport, !env.missingKeys.isEmpty {
+                                        Spacer(minLength: 0)
+                                        Text("ENV \(env.missingKeys.count)")
+                                            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
                                             .foregroundStyle(Toast.Tint.waiting.color)
                                     }
                                 }

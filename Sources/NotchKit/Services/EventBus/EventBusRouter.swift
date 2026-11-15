@@ -65,6 +65,7 @@ public enum EventBusAction: Equatable, Sendable {
     case activity(ActivityEvent)
     case buildEvent(BuildEventInput)
     case terminalOutput(TerminalOutputInput)
+    case ciRunsUpdated([CIRunRecord])
     case pinLogFile(path: String, pattern: String)
     case pinLogCommand(command: String, pattern: String)
     case unpinLog
@@ -106,6 +107,8 @@ public struct EventBusRouter: Sendable {
             return handleBuild(request.body)
         case ("POST", "/terminal"):
             return handleTerminal(request.body)
+        case ("POST", "/ci"):
+            return handleCI(request.body)
         case ("POST", "/logpin"):
             return handleLogPin(request.body)
         default:
@@ -268,6 +271,17 @@ public struct EventBusRouter: Sendable {
             )
         }
         return badRequest("missing_path_or_command")
+    }
+
+    private func handleCI(_ body: Data) -> EventBusResult {
+        let runs = CIWatchtowerParser.parseGitHubWorkflowRuns(body, repository: "GitHub", syncedAt: Date(), isLive: true)
+        guard !runs.isEmpty else {
+            return badRequest("invalid_ci_payload")
+        }
+        return EventBusResult(
+            response: HTTPResponse(statusCode: 200, reason: "OK", json: #"{"ok":true}"#),
+            action: .ciRunsUpdated(runs)
+        )
     }
 
     private func badRequest(_ code: String) -> EventBusResult {

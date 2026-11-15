@@ -791,10 +791,61 @@ final class AppCoordinator {
     }
 
     private func startGitGlance() {
-        let monitor = GitGlanceMonitor { [weak store] status in
+        let monitor = GitGlanceMonitor { [weak self, weak store] status in
             store?.send(.gitStatusUpdated(status))
+            self?.refreshRepoIntelligence(for: status)
         }
         gitGlance = monitor
+    }
+
+    private func refreshRepoIntelligence(for status: GitStatus?) {
+        guard let status else {
+            store.send(.changeImpactUpdated(nil))
+            store.send(.envGuardUpdated(nil))
+            store.send(.databaseReportUpdated(nil))
+            return
+        }
+        let repoRoot = status.repoRoot
+        let dirtyCount = status.dirtyCount
+        Task.detached(priority: .utility) { [weak store] in
+            let changedFiles: [String]
+            if dirtyCount > 0 {
+                let output = Self.execCommand("git diff --name-only HEAD", in: repoRoot).tailOutput
+                changedFiles = output
+                    .split(whereSeparator: \.isNewline)
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            } else {
+                changedFiles = []
+            }
+            let impactReport = changedFiles.isEmpty
+                ? nil
+                : ChangeImpactAnalyzer.analyze(changedFiles: changedFiles, repoRoot: URL(fileURLWithPath: repoRoot))
+
+            let envExampleURL = URL(fileURLWithPath: repoRoot).appendingPathComponent(".env.example")
+            let envURL = URL(fileURLWithPath: repoRoot).appendingPathComponent(".env")
+            let envReport: EnvGuardReport?
+            if let exampleText = try? String(contentsOf: envExampleURL, encoding: .utf8) {
+                let envText = (try? String(contentsOf: envURL, encoding: .utf8)) ?? ""
+                envReport = EnvGuard.compare(exampleContent: exampleText, envContent: envText)
+            } else {
+                envReport = nil
+            }
+
+            let dbReport = DatabaseMigrationInspector.inspectLocalMigrations(in: URL(fileURLWithPath: repoRoot), appliedMigrations: nil)
+            let visibleDBReport: DatabaseHealthReport?
+            if case .available = dbReport.availability {
+                visibleDBReport = dbReport
+            } else {
+                visibleDBReport = nil
+            }
+
+            await MainActor.run {
+                store?.send(.changeImpactUpdated(impactReport))
+                store?.send(.envGuardUpdated(envReport))
+                store?.send(.databaseReportUpdated(visibleDBReport))
+            }
+        }
     }
 
     private func startClipboard() {
@@ -968,6 +1019,8 @@ final class AppCoordinator {
                     }
                 case .terminalOutput(let term):
                     self.handleTerminalOutput(term)
+                case .ciRunsUpdated(let runs):
+                    store.send(.ciRunsUpdated(runs))
                 case .pinLogFile(let path, let pattern):
                     self.logPin?.pinFile(path: path, pattern: pattern)
                     store.post(Toast(title: "Pinned log", subtitle: (path as NSString).lastPathComponent, symbol: "pin.fill", tint: .info, duration: .seconds(2)))

@@ -97,6 +97,12 @@ public struct NotchState: Equatable, Sendable {
     public var acknowledgedConflictIDs: Set<String> = []
     public var worklogEntries: [WorklogEntry] = []
     public var worklogRange: WorklogRange = .today
+    public var changeImpact: ChangeImpactReport?
+    public var ciRuns: [CIRunRecord] = []
+    public var databaseReport: DatabaseHealthReport?
+    public var dependencyFindings: [DependencyFinding] = []
+    public var envGuardReport: EnvGuardReport?
+    public var releaseReadiness: ReleaseReadinessReport?
 
     public init() {}
 
@@ -191,6 +197,11 @@ public enum NotchEvent: Sendable, Equatable {
     case worklogUpdated([WorklogEntry])
     case setWorklogRange(WorklogRange)
     case worklogAIExplanationUpdated(id: UUID, explanation: String)
+    case changeImpactUpdated(ChangeImpactReport?)
+    case ciRunsUpdated([CIRunRecord])
+    case databaseReportUpdated(DatabaseHealthReport?)
+    case dependencyFindingsUpdated([DependencyFinding])
+    case envGuardUpdated(EnvGuardReport?)
 }
 
 public enum NotchEffect: Sendable, Equatable {
@@ -225,6 +236,7 @@ public enum NotchReducer {
             s.agentSessions.removeAll { !$0.isActive }
             s.agentConflicts = AgentConflictDetector.detect(sessions: s.agentSessions, now: Date())
             s.acknowledgedConflictIDs = s.acknowledgedConflictIDs.intersection(Set(s.agentConflicts.map(\.id)))
+            recomputeReleaseReadiness(into: &s)
             return []
         case .devServersUpdated(let servers):
             s.devServers = servers
@@ -294,6 +306,25 @@ public enum NotchReducer {
             return []
         case .gitStatusUpdated(let status):
             s.gitStatus = status
+            recomputeReleaseReadiness(into: &s)
+            return []
+        case .changeImpactUpdated(let report):
+            s.changeImpact = report
+            return []
+        case .ciRunsUpdated(let runs):
+            s.ciRuns = runs
+            recomputeReleaseReadiness(into: &s)
+            return []
+        case .databaseReportUpdated(let report):
+            s.databaseReport = report
+            return []
+        case .dependencyFindingsUpdated(let findings):
+            s.dependencyFindings = findings
+            recomputeReleaseReadiness(into: &s)
+            return []
+        case .envGuardUpdated(let report):
+            s.envGuardReport = report
+            recomputeReleaseReadiness(into: &s)
             return []
         case .recordRun(let record):
             appendRun(record, into: &s)
@@ -462,6 +493,7 @@ public enum NotchReducer {
 
         s.agentConflicts = AgentConflictDetector.detect(sessions: s.agentSessions, now: now)
         s.acknowledgedConflictIDs = s.acknowledgedConflictIDs.intersection(Set(s.agentConflicts.map(\.id)))
+        recomputeReleaseReadiness(into: &s, at: now)
 
         var effects: [NotchEffect] = []
         if let confirmed = s.agentConflicts.first(where: { $0.confidence == .confirmed && !s.acknowledgedConflictIDs.contains($0.id) }) {
@@ -559,6 +591,7 @@ private extension NotchReducer {
         }
 
         s.latestBuildResult = result
+        recomputeReleaseReadiness(into: &s, at: now)
         if let idx = s.buildHistory.firstIndex(where: { $0.id == result.id }) {
             s.buildHistory[idx] = result
         } else {
@@ -617,6 +650,28 @@ private extension NotchReducer {
                 duration: .seconds(3)
             ), into: &s)
         }
+    }
+
+    private static func recomputeReleaseReadiness(into s: inout NotchState, at now: Date = Date()) {
+        let hasSignal = s.latestBuildResult != nil
+            || s.gitStatus != nil
+            || !s.agentConflicts.isEmpty
+            || !s.ciRuns.isEmpty
+            || s.envGuardReport != nil
+            || !s.dependencyFindings.isEmpty
+        guard hasSignal else {
+            s.releaseReadiness = nil
+            return
+        }
+        s.releaseReadiness = ReleaseReadinessEvaluator.evaluate(
+            latestBuild: s.latestBuildResult,
+            gitStatus: s.gitStatus,
+            agentConflicts: s.agentConflicts,
+            ciRun: s.ciRuns.first,
+            envReport: s.envGuardReport,
+            securityFindings: s.dependencyFindings,
+            now: now
+        )
     }
 }
 
