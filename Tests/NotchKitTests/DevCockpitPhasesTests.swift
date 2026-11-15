@@ -209,5 +209,212 @@ import Testing
         }
 
         #expect(state.releaseReadiness?.status == .ready)
+
+        // Invalid CI payload returns 400
+        let badReq = HTTPRequest(
+            method: "POST",
+            path: "/ci",
+            headers: ["authorization": "Bearer test-token"],
+            body: Data("{}".utf8)
+        )
+        #expect(router.handle(badReq).response.statusCode == 400)
+    }
+
+    @Test
+    func phase5ServiceHealthCoversAllContainerStatesAndDependencies() {
+        let containers = [
+            DockerContainer(id: "c1", name: "db", image: "postgres:16", state: "exited", status: "Exited (0) 2 hours ago", portsSummary: ""),
+            DockerContainer(id: "c2", name: "redis", image: "redis:7", state: "exited", status: "Exited (137) 1 minute ago", portsSummary: "6379->6379"),
+            DockerContainer(id: "c3", name: "worker", image: "node:22", state: "restarting", status: "Restarting (1) 5 seconds ago", portsSummary: ""),
+            DockerContainer(id: "c4", name: "api", image: "node:22", state: "running", status: "Up 3 minutes (unhealthy)", portsSummary: "3000->3000"),
+            DockerContainer(id: "c5", name: "web", image: "nginx", state: "running", status: "Up 3 minutes (healthy)", portsSummary: "80->80"),
+            DockerContainer(id: "c6", name: "init", image: "alpine", state: "created", status: "Created", portsSummary: "")
+        ]
+
+        let summary = ServiceHealthInspector.evaluate(
+            containers: containers,
+            engineAvailability: .available,
+            dependencyMap: ["web": ["api", "redis"]]
+        )
+        #expect(summary.services.count == 6)
+        #expect(summary.services[0].state == .stopped)
+        #expect(summary.services[1].state == .crashed)
+        #expect(summary.services[2].state == .restarting)
+        #expect(summary.services[3].state == .unhealthy)
+        #expect(summary.services[4].state == .running)
+        #expect(summary.services[4].affectedDependency == "api")
+        #expect(summary.services[5].state == .stopped)
+        #expect(summary.unhealthyCount == 3)
+
+        let stoppedEngine = ServiceHealthInspector.evaluate(containers: containers, engineAvailability: .daemonStopped)
+        #expect(stoppedEngine.services.isEmpty)
+        #expect(stoppedEngine.engineAvailability == .daemonStopped)
+    }
+
+    @Test
+    func phase6CIWatchtowerMapsAllStatusesAndRejectsInvalidJSON() {
+        #expect(CIWatchtowerParser.mapStatus(status: "queued", conclusion: "") == .queued)
+        #expect(CIWatchtowerParser.mapStatus(status: "waiting", conclusion: "") == .queued)
+        #expect(CIWatchtowerParser.mapStatus(status: "in_progress", conclusion: "") == .inProgress)
+        #expect(CIWatchtowerParser.mapStatus(status: "completed", conclusion: "timed_out") == .failure)
+        #expect(CIWatchtowerParser.mapStatus(status: "completed", conclusion: "cancelled") == .cancelled)
+        #expect(CIWatchtowerParser.mapStatus(status: "completed", conclusion: "skipped") == .cancelled)
+        #expect(CIWatchtowerParser.mapStatus(status: "completed", conclusion: "weird") == .unknown)
+        #expect(CIWatchtowerParser.mapStatus(status: "other", conclusion: "") == .unknown)
+
+        #expect(CIWatchtowerParser.parseGitHubWorkflowRuns(Data("not json".utf8), repository: "repo").isEmpty)
+    }
+
+    @Test
+    func phase7DatabaseMigrationRedactsSQLServerAndHandlesAllMigrationStates() throws {
+        let sqlServer = "Server=localhost;Database=app;User Id=sa;Password=TopSecret!123;Pwd=abc;Secret=xyz"
+        let redacted = ConnectionStringRedactor.redact(sqlServer)
+        #expect(!redacted.contains("TopSecret!123"))
+        #expect(!redacted.contains("=abc"))
+        #expect(!redacted.contains("=xyz"))
+        #expect(redacted.contains("[REDACTED]"))
+
+        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("db-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        // No migrations folder -> .unconfigured
+        let unconfigured = DatabaseMigrationInspector.inspectLocalMigrations(in: tmp, appliedMigrations: [])
+        #expect(unconfigured.availability == .unconfigured)
+
+        // With prisma/migrations
+        let prismaDir = tmp.appendingPathComponent("prisma/migrations", isDirectory: true)
+        try FileManager.default.createDirectory(at: prismaDir, withIntermediateDirectories: true)
+        try Data().write(to: prismaDir.appendingPathComponent("20260101_init"))
+
+        let unknownApplied = DatabaseMigrationInspector.inspectLocalMigrations(in: tmp, appliedMigrations: nil)
+        #expect(unknownApplied.availability == .unknown)
+        #expect(unknownApplied.migrationStatus == .unknown)
+
+        let upToDate = DatabaseMigrationInspector.inspectLocalMigrations(in: tmp, appliedMigrations: ["20260101_init"])
+        #expect(upToDate.availability == .available)
+        #expect(upToDate.migrationStatus == .upToDate)
+    }
+
+    @Test
+    func phase8DependencyWatcherDetectsUnityAndNugetAndSortsAuditBySeverity() throws {
+        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("sec-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmp.appendingPathComponent("Packages"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        try "{}".write(to: tmp.appendingPathComponent("Packages/manifest.json"), atomically: true, encoding: .utf8)
+        try "<Project/>".write(to: tmp.appendingPathComponent("App.csproj"), atomically: true, encoding: .utf8)
+
+        let ecosystems = DependencySecurityWatcher.detectEcosystems(in: tmp)
+        #expect(ecosystems.contains(.unity))
+        #expect(ecosystems.contains(.nuget))
+
+        let auditJSON = """
+        {
+          "vulnerabilities": {
+            "zlib-low": { "severity": "low", "range": "<1.0.0" },
+            "alpha-crit": { "severity": "critical", "range": "<2.0.0" },
+            "beta-high": { "severity": "high", "range": "*" }
+          }
+        }
+        """
+        let findings = DependencySecurityWatcher.parseNpmAuditJSON(Data(auditJSON.utf8))
+        #expect(findings.map(\.packageName) == ["alpha-crit", "beta-high", "zlib-low"])
+        #expect(DependencySecurityWatcher.parseNpmAuditJSON(Data("invalid".utf8)).isEmpty)
+    }
+
+    @Test
+    func phase9EnvGuardHandlesExportCommentsInvalidLinesAndSafeAPIMethods() {
+        let example = """
+        # Database
+        export DATABASE_URL=postgres://example
+        API_KEY=
+        """
+        let env = """
+        DATABASE_URL=postgres://secret
+        BAD LINE WITHOUT EQUALS
+        INVALID KEY=value
+        EXTRA_FLAG=1
+        """
+        let report = EnvGuard.compare(exampleContent: example, envContent: env)
+        #expect(report.missingKeys == ["API_KEY"])
+        #expect(report.extraKeys == ["EXTRA_FLAG"])
+        #expect(report.invalidLines == ["Line 2", "Line 3"])
+        #expect(!report.isHealthy)
+
+        #expect(SafeAPIHealthCheck.isSafeMethod("head"))
+        #expect(!SafeAPIHealthCheck.isSafeMethod("PATCH"))
+
+        let ok = SafeAPIHealthResult(url: URL(string: "http://localhost:3000/health")!, statusCode: 204, latencyMs: 12, errorMessage: nil, checkedAt: Date())
+        let fail = SafeAPIHealthResult(url: URL(string: "http://localhost:3000/health")!, statusCode: 503, latencyMs: 12, errorMessage: nil, checkedAt: Date())
+        let down = SafeAPIHealthResult(url: URL(string: "http://localhost:3000/health")!, statusCode: nil, latencyMs: nil, errorMessage: "Connection refused", checkedAt: Date())
+        #expect(ok.isHealthy)
+        #expect(!fail.isHealthy)
+        #expect(!down.isHealthy)
+    }
+
+    @Test
+    func phase10ReleaseReadinessCoversConfirmedConflictSecurityAndUnknownStates() {
+        let buildPassed = BuildTestResult(id: "b1", project: "App", toolchain: .swift, kind: .test, status: .passed, summary: "ok")
+        let cleanGit = GitStatus(repoRoot: "/tmp/App", repoName: "App", branch: "main", dirtyCount: 0, ahead: 0, behind: 0)
+        let ciPassed = CIRunRecord(id: "1", repository: "App", branch: "main", commitSHA: "abc", workflow: "CI", status: .success)
+        let envOK = EnvGuardReport(missingKeys: [], extraKeys: [], invalidLines: [])
+
+        let confirmedConflict = AgentConflict(
+            id: "conf-1",
+            kind: .sameFileModified,
+            confidence: .confirmed,
+            sessions: [
+                AgentSession.Key(source: "claude", session: "s1"),
+                AgentSession.Key(source: "codex", session: "s2")
+            ],
+            filePath: "A.swift",
+            title: "Same file",
+            detail: "A.swift"
+        )
+        let blockedByConflict = ReleaseReadinessEvaluator.evaluate(
+            latestBuild: buildPassed,
+            gitStatus: cleanGit,
+            agentConflicts: [confirmedConflict],
+            ciRun: ciPassed,
+            envReport: envOK
+        )
+        #expect(blockedByConflict.status == .blocked)
+
+        let highFinding = DependencyFinding(
+            ecosystem: .npm,
+            packageName: "lodash",
+            version: "<4.17.21",
+            advisorySource: "npm audit",
+            severity: .high,
+            isConfirmed: true
+        )
+        let blockedBySecurity = ReleaseReadinessEvaluator.evaluate(
+            latestBuild: buildPassed,
+            gitStatus: cleanGit,
+            agentConflicts: [],
+            ciRun: ciPassed,
+            envReport: envOK,
+            securityFindings: [highFinding]
+        )
+        #expect(blockedBySecurity.status == .blocked)
+
+        let lowFinding = DependencyFinding(
+            ecosystem: .npm,
+            packageName: "minimist",
+            version: "<1.2.6",
+            advisorySource: "npm audit",
+            severity: .low,
+            isConfirmed: true
+        )
+        let cautionBySecurity = ReleaseReadinessEvaluator.evaluate(
+            latestBuild: buildPassed,
+            gitStatus: cleanGit,
+            agentConflicts: [],
+            ciRun: ciPassed,
+            envReport: envOK,
+            securityFindings: [lowFinding]
+        )
+        #expect(cautionBySecurity.status == .needsAttention)
     }
 }
