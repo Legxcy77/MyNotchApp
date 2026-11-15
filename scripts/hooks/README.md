@@ -13,3 +13,4 @@ notify = ["~/MyNotchApp/scripts/hooks/codex-notify.sh"]
 
 ## Antigravity / Custom Agents
 Call `~/MyNotchApp/scripts/notch activity antigravity "<session>" working "Running" "$PWD"` when starting a long task, `waiting` when blocked on user input, and `done` or `failed` on completion.
+

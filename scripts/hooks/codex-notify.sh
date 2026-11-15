@@ -25,3 +25,4 @@ print(cwd)
 
 lines=("${(@f)parsed}")
 "$NOTCH_CLI" activity codex "${lines[1]}" "${lines[2]}" "${lines[3]}" "${lines[4]}" >/dev/null 2>&1 || true
+

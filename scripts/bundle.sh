@@ -28,6 +28,13 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$BIN_PATH" "$MACOS_DIR/$APP_NAME"
 chmod +x "$MACOS_DIR/$APP_NAME"
 
+if [[ -f "$ROOT_DIR/Sources/MediaRemoteBridge/bridge.m" ]]; then
+    echo "Building MediaRemoteBridge.dylib..."
+    clang -shared -fobjc-arc -framework Foundation \
+        "$ROOT_DIR/Sources/MediaRemoteBridge/bridge.m" \
+        -o "$RESOURCES_DIR/MediaRemoteBridge.dylib"
+fi
+
 cat > "$CONTENTS/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -72,3 +79,4 @@ codesign --force --deep --sign - --identifier "$BUNDLE_ID" "$APP_BUNDLE"
 codesign --verify --verbose=2 "$APP_BUNDLE"
 
 echo "Done: $APP_BUNDLE"
+

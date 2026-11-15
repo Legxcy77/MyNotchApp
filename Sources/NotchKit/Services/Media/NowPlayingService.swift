@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import os
 
 public enum MediaCommand: Sendable {
     case togglePlayPause
@@ -296,100 +297,148 @@ final class SpotifyMusicNowPlayingProvider: NowPlayingProvider {
     }
 }
 
-// MARK: - Optional Private API Provider (MediaRemote.framework behind protocol)
+// MARK: - Optional Private API Provider (MediaRemote via Apple-signed /usr/bin/perl bridge)
 
 @MainActor
 final class MediaRemoteNowPlayingProvider: NowPlayingProvider {
-    private typealias RegisterFn = @convention(c) (DispatchQueue) -> Void
-    private typealias GetInfoFn = @convention(c) (DispatchQueue, @escaping ([String: Any]) -> Void) -> Void
-    private typealias SendCmdFn = @convention(c) (UInt32, UnsafeRawPointer?) -> Bool
+    private struct BridgeSnapshot: Decodable, Sendable {
+        let empty: Bool?
+        let title: String?
+        let artist: String?
+        let album: String?
+        let source: String?
+        let duration: Double?
+        let elapsed: Double?
+        let playbackRate: Double?
+        let artworkBase64: String?
+    }
 
-    private var handle: UnsafeMutableRawPointer?
-    private var getInfo: GetInfoFn?
-    private var sendCmd: SendCmdFn?
-    private var observers: [NSObjectProtocol] = []
+    private var process: Process?
+    private var outputHandle: FileHandle?
     private var onChange: (@MainActor (NowPlayingTrack?) -> Void)?
+    private var dylibPath: String?
+
+    isolated deinit {
+        outputHandle?.readabilityHandler = nil
+        if let process, process.isRunning {
+            process.terminate()
+        }
+    }
 
     func start(onChange: @escaping @MainActor (NowPlayingTrack?) -> Void) {
         self.onChange = onChange
-        guard let h = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_LAZY) else {
-            return
-        }
-        handle = h
-        if let regSym = dlsym(h, "MRMediaRemoteRegisterForNowPlayingNotifications") {
-            let reg = unsafeBitCast(regSym, to: RegisterFn.self)
-            reg(.main)
-        }
-        if let infoSym = dlsym(h, "MRMediaRemoteGetNowPlayingInfo") {
-            getInfo = unsafeBitCast(infoSym, to: GetInfoFn.self)
-        }
-        if let cmdSym = dlsym(h, "MRMediaRemoteSendCommand") {
-            sendCmd = unsafeBitCast(cmdSym, to: SendCmdFn.self)
-        }
+        guard let dylib = Self.resolveDylibPath() else { return }
+        self.dylibPath = dylib
 
-        let nc = NotificationCenter.default
-        let names = [
-            "kMRMediaRemoteNowPlayingInfoDidChangeNotification",
-            "kMRMediaRemoteNowPlayingApplicationIsPlayingDidChangeNotification"
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+        p.arguments = [
+            "-MDynaLoader",
+            "-e",
+            "my $l = DynaLoader::dl_load_file($ARGV[0]) or die $!; my $s = DynaLoader::dl_find_symbol($l, 'mr_stream') or die; DynaLoader::dl_install_xsub('main::mr_stream', $s); mr_stream();",
+            dylib
         ]
-        observers = names.map { name in
-            nc.addObserver(forName: NSNotification.Name(name), object: nil, queue: .main) { [weak self] _ in
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = Pipe()
+
+        let handle = pipe.fileHandleForReading
+        let bufferState = OSAllocatedUnfairLock(initialState: Data())
+
+        handle.readabilityHandler = { [weak self] fh in
+            let chunk = fh.availableData
+            guard !chunk.isEmpty else {
+                fh.readabilityHandler = nil
+                return
+            }
+            let lines: [Data] = bufferState.withLock { buffer in
+                buffer.append(chunk)
+                var extracted: [Data] = []
+                while let nl = buffer.firstIndex(of: 0x0A) {
+                    extracted.append(Data(buffer[..<nl]))
+                    buffer.removeSubrange(...nl)
+                }
+                return extracted
+            }
+
+            for lineData in lines where !lineData.isEmpty {
+                guard let snap = try? JSONDecoder().decode(BridgeSnapshot.self, from: lineData) else { continue }
                 Task { @MainActor [weak self] in
-                    self?.refresh()
+                    self?.apply(snap)
                 }
             }
         }
-        refresh()
+
+        do {
+            try p.run()
+            self.process = p
+            self.outputHandle = handle
+        } catch {
+            handle.readabilityHandler = nil
+        }
     }
 
     func stop() {
-        for obs in observers {
-            NotificationCenter.default.removeObserver(obs)
+        outputHandle?.readabilityHandler = nil
+        outputHandle = nil
+        if let process, process.isRunning {
+            process.terminate()
         }
-        observers.removeAll()
-        if let handle {
-            dlclose(handle)
-            self.handle = nil
-        }
+        process = nil
     }
 
     func perform(_ command: MediaCommand) {
-        // MRMediaRemoteCommand: 2 = togglePlayPause, 4 = nextTrack, 5 = previousTrack
-        let code: UInt32 = switch command {
-        case .togglePlayPause: 2
-        case .next: 4
-        case .previous: 5
+        guard let dylibPath else { return }
+        let symbol = switch command {
+        case .togglePlayPause: "mr_cmd_toggle"
+        case .next: "mr_cmd_next"
+        case .previous: "mr_cmd_prev"
         }
-        _ = sendCmd?(code, nil)
+        Task.detached(priority: .userInitiated) {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+            p.arguments = [
+                "-MDynaLoader",
+                "-e",
+                "my $l = DynaLoader::dl_load_file($ARGV[0]) or exit 1; my $s = DynaLoader::dl_find_symbol($l, $ARGV[1]) or exit 1; DynaLoader::dl_install_xsub('main::mr_cmd', $s); mr_cmd();",
+                dylibPath,
+                symbol
+            ]
+            p.standardOutput = Pipe()
+            p.standardError = Pipe()
+            try? p.run()
+            p.waitUntilExit()
+        }
     }
 
-    private func refresh() {
-        guard let getInfo else { return }
-        getInfo(.main) { [weak self] info in
-            guard let self else { return }
-            guard let title = info["kMRMediaRemoteNowPlayingInfoTitle"] as? String, !title.isEmpty else {
-                return
-            }
-            let artist = info["kMRMediaRemoteNowPlayingInfoArtist"] as? String ?? ""
-            let album = info["kMRMediaRemoteNowPlayingInfoAlbum"] as? String
-            let duration = info["kMRMediaRemoteNowPlayingInfoDuration"] as? Double ?? 0
-            let elapsed = info["kMRMediaRemoteNowPlayingInfoElapsedTime"] as? Double ?? 0
-            let rate = info["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? Double ?? 0
-            let artwork = info["kMRMediaRemoteNowPlayingInfoArtworkData"] as? Data
-            let source = info["kMRMediaRemoteNowPlayingInfoParentApplicationDisplayName"] as? String ?? "Now Playing"
-
-            let track = NowPlayingTrack(
-                title: title,
-                artist: artist,
-                album: album,
-                source: source,
-                isPlaying: rate > 0,
-                duration: duration,
-                anchorPosition: elapsed,
-                anchorDate: .now,
-                artworkData: artwork
-            )
-            self.onChange?(track)
+    private func apply(_ snap: BridgeSnapshot) {
+        if snap.empty == true {
+            onChange?(nil)
+            return
         }
+        guard let title = snap.title, !title.isEmpty else { return }
+        let artworkData = snap.artworkBase64.flatMap { $0.isEmpty ? nil : Data(base64Encoded: $0) }
+        let track = NowPlayingTrack(
+            title: title,
+            artist: snap.artist ?? "",
+            album: snap.album?.isEmpty == true ? nil : snap.album,
+            source: snap.source ?? "Now Playing",
+            isPlaying: (snap.playbackRate ?? 0) > 0,
+            duration: snap.duration ?? 0,
+            anchorPosition: snap.elapsed ?? 0,
+            anchorDate: .now,
+            artworkData: artworkData
+        )
+        onChange?(track)
+    }
+
+    private static func resolveDylibPath() -> String? {
+        if let bundled = Bundle.main.resourceURL?.appendingPathComponent("MediaRemoteBridge.dylib").path,
+           FileManager.default.fileExists(atPath: bundled) {
+            return bundled
+        }
+        let devPath = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("MyNotchApp/build/MyNotchApp.app/Contents/Resources/MediaRemoteBridge.dylib").path
+        return FileManager.default.fileExists(atPath: devPath) ? devPath : nil
     }
 }
