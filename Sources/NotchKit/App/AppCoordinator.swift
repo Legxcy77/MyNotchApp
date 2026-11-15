@@ -38,6 +38,8 @@ final class AppCoordinator {
     private var lastLyricsTrackKey: String?
     private var lyricsTask: Task<Void, Never>?
     private var focusTask: Task<Void, Never>?
+    private var aiTask: Task<Void, Never>?
+    private let geminiClient = GeminiClient()
     private var isMenuOpen = false
 
     init() {
@@ -72,7 +74,7 @@ final class AppCoordinator {
         store.onModeChanged = { [weak self] mode in
             guard let self else { return }
             self.devServers?.setActive(mode == .expanded || self.isMenuOpen)
-            self.window.setClipboardFocus(mode == .clipboard || mode == .commandPalette)
+            self.window.setClipboardFocus(mode == .clipboard || mode == .commandPalette || mode == .quickAI)
             if mode == .commandPalette {
                 let repo = self.resolvedRepoPath()
                 self.store.send(.setActiveRepoPath(repo))
@@ -85,6 +87,9 @@ final class AppCoordinator {
             self.store.send(.setCommandPaletteOpen(false))
             let repo = self.resolvedRepoPath()
             self.runTaskInBackground(task, repoPath: repo)
+        }
+        store.onAskAI = { [weak self] prompt in
+            self?.runQuickAI(prompt: prompt)
         }
         store.onMediaCommand = { [weak self] command in
             self?.nowPlaying?.perform(command)
@@ -148,16 +153,11 @@ final class AppCoordinator {
                 self?.store.send(.closeErrorLens)
                 self?.store.post(Toast(title: "Copied error log", symbol: "doc.on.doc", tint: .info, duration: .seconds(2)))
             case .askAI(let log):
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString("Explain this error:\n\n\(log)", forType: .string)
                 self?.store.send(.closeErrorLens)
-                self?.store.post(Toast(
-                    title: "Error prompt copied",
-                    subtitle: "Ready for Quick AI (A6)",
-                    symbol: "sparkles",
-                    tint: .info,
-                    duration: .seconds(3)
-                ))
+                let prompt = "Explain this error and how to fix it:\n\n\(log)"
+                self?.store.send(.setAIPrompt(prompt))
+                self?.store.send(.setQuickAIOpen(true))
+                self?.runQuickAI(prompt: prompt)
             }
         }
 
@@ -170,6 +170,31 @@ final class AppCoordinator {
         startMeetingMonitor()
         startGitHubPulse()
         startSystemPulse()
+    }
+
+    private func runQuickAI(prompt: String) {
+        aiTask?.cancel()
+        guard let apiKey = GeminiKeychain.loadKey() else {
+            store.send(.aiResponseUpdated("Please enter your Gemini API key above.", isLoading: false))
+            return
+        }
+        store.send(.setAIPrompt(prompt))
+        store.send(.aiResponseUpdated("", isLoading: true))
+        let client = geminiClient
+        let storeRef = store
+        aiTask = Task { [weak storeRef] in
+            do {
+                try await client.streamResponse(prompt: prompt, apiKey: apiKey) { delta in
+                    await MainActor.run {
+                        guard let storeRef else { return }
+                        storeRef.send(.aiResponseUpdated(storeRef.state.aiResponse + delta, isLoading: true))
+                    }
+                }
+                storeRef?.send(.aiResponseUpdated(storeRef?.state.aiResponse ?? "", isLoading: false))
+            } catch {
+                storeRef?.send(.aiResponseUpdated("Error: \(error.localizedDescription)", isLoading: false))
+            }
+        }
     }
 
     private func handleFocusChanged(_ session: FocusSession?) {
@@ -359,6 +384,9 @@ final class AppCoordinator {
         }
         hk.registerOptionSpace { [weak store] in
             store?.send(.toggleCommandPalette)
+        }
+        hk.registerOptionA { [weak store] in
+            store?.send(.toggleQuickAI)
         }
         hotKey = hk
     }

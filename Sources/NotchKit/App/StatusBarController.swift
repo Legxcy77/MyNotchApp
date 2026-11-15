@@ -45,6 +45,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(ActionMenuItem(title: "Command Palette (⌥Space)") { [store] in
             store.send(.toggleCommandPalette)
         })
+        menu.addItem(ActionMenuItem(title: "Quick AI (⌥A)") { [store] in
+            store.send(.toggleQuickAI)
+        })
 
         let displays = NSMenu()
         displays.addItem(ActionMenuItem(title: "Automatic", on: window.pinnedDisplayID == nil) { [window] in

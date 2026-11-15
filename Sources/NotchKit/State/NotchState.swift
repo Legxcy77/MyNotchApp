@@ -6,6 +6,7 @@ public enum NotchMode: Equatable, Sendable {
     case fileDrop
     case clipboard
     case commandPalette
+    case quickAI
     case errorLens(title: String, log: String)
     case toast(Toast)
 }
@@ -28,6 +29,10 @@ public struct NotchState: Equatable, Sendable {
     public var isDragging = false
     public var isClipboardOpen = false
     public var isCommandPaletteOpen = false
+    public var isQuickAIOpen = false
+    public var aiPrompt = ""
+    public var aiResponse = ""
+    public var isAILoading = false
     public var activeError: ErrorLensPayload?
     public var activeToast: Toast?
     /// Sorted by priority (desc), FIFO within a priority.
@@ -80,6 +85,7 @@ public struct NotchState: Equatable, Sendable {
         if isDragging { return .fileDrop }
         if isClipboardOpen { return .clipboard }
         if isCommandPaletteOpen { return .commandPalette }
+        if isQuickAIOpen { return .quickAI }
         if let activeError { return .errorLens(title: activeError.title, log: activeError.log) }
         if let activeToast { return .toast(activeToast) }
         if isHovering { return .expanded }
@@ -112,6 +118,10 @@ public enum NotchEvent: Sendable, Equatable {
     case recordRun(RunRecord)
     case clearRunHistory
     case setExpandedTab(ExpandedTab)
+    case toggleQuickAI
+    case setQuickAIOpen(Bool)
+    case setAIPrompt(String)
+    case aiResponseUpdated(String, isLoading: Bool)
     case nowPlayingUpdated(NowPlayingTrack?)
     case lyricsUpdated(LRCDocument?)
     case nextMeetingUpdated(UpcomingMeeting?)
@@ -209,6 +219,19 @@ public enum NotchReducer {
             return []
         case .setExpandedTab(let tab):
             s.expandedTab = tab
+            return []
+        case .toggleQuickAI:
+            s.isQuickAIOpen.toggle()
+            return []
+        case .setQuickAIOpen(let open):
+            s.isQuickAIOpen = open
+            return []
+        case .setAIPrompt(let prompt):
+            s.aiPrompt = prompt
+            return []
+        case .aiResponseUpdated(let text, let loading):
+            s.aiResponse = text
+            s.isAILoading = loading
             return []
         case .nowPlayingUpdated(let track):
             s.nowPlaying = track

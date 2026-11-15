@@ -166,6 +166,22 @@ public struct NotchRootView: View {
                     onClose: { store.send(.setCommandPaletteOpen(false)) }
                 )
                 .transition(.islandContent)
+            case .quickAI:
+                let latestClip = store.state.clipboard.items.compactMap { item -> String? in
+                    if case .text(let t) = item.content { return t }
+                    return nil
+                }.first
+                QuickAIView(
+                    clearance: geometry.cameraClearance,
+                    prompt: store.state.aiPrompt,
+                    response: store.state.aiResponse,
+                    isLoading: store.state.isAILoading,
+                    latestClipboardText: latestClip,
+                    onPromptChange: { store.send(.setAIPrompt($0)) },
+                    onSubmit: { store.askAI($0) },
+                    onClose: { store.send(.setQuickAIOpen(false)) }
+                )
+                .transition(.islandContent)
             }
         }
     }

@@ -48,7 +48,7 @@ Legend: `[x]` done · `[ ]` todo · (U) unit-tested · (V) verified by eye on a 
 - [x] **A3 Focus Ring**: Pomodoro drawn as a progress stroke around the island outline (`Shape.trim`). Optionally toggle a Focus mode via `shortcuts run "<name>"`. Gate: (V).
 - [x] **A4 GitHub Pulse**: `gh api` every 60s for the owner's open PRs (checks status) + review requests. Toast on state change only. Gate: (V).
 - [x] **A5 System Pulse**: CPU/RAM/net sparkline in the expanded view. Alert when a process is >90% CPU for 30s, with a Kill action. Gate: (V).
-- [ ] **A6 Quick AI**: hotkey opens a prompt in the island and streams answers from the Gemini API (key in Keychain). Presets: translate TH↔EN, explain error (from D1), explain regex/clipboard. Gate: (V).
+- [x] **A6 Quick AI**: hotkey opens a prompt in the island and streams answers from the Gemini API (key in Keychain). Presets: translate TH↔EN, explain error (from D1), explain regex/clipboard. Gate: (V).
 
 ## Tier B
 - [ ] **B1 Volume/Brightness HUD** in the island (CGEventTap on media keys, needs Accessibility). Gate: (V).
@@ -80,3 +80,4 @@ Legend: `[x]` done · `[ ]` todo · (U) unit-tested · (V) verified by eye on a 
 - 2026-11-15: A3 implemented (`FocusSession`, `Shape.trim` progress stroke around island outline in `NotchRootView`, `FocusTabView` with 5/15/25/45m presets, optional `shortcuts run` hook). 70/70 tests green. A3 (V) pending.
 - 2026-11-15: A4 implemented (`GitHubPulseParser`, `GitHubPulseMonitor` polling `gh api` every 60s for open PRs & review requests, toast with `openURL` on state transitions only). 71/71 tests green. A4 (V) pending.
 - 2026-11-15: A5 implemented (`SystemPulseParser`, `SystemPulseTracker`, `SystemPulseMonitor` using Mach `host_statistics`/`host_statistics64`, CPU sparkline + RAM in `ExpandedView`, >90% CPU for 30s alert with Kill action). 72/72 tests green. A5 (V) pending.
+- 2026-11-15: A6 implemented (`GeminiClient` SSE streaming + `GeminiKeychain`, `HotKeyMonitor` `⌥A`, `QuickAIView` with TH↔EN / Explain Error / Explain Regex presets, wired to D1 Error Lens `Ask AI`). 73/73 tests green. A6 (V) pending.
