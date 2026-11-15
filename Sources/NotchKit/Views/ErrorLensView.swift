@@ -66,3 +66,4 @@ struct ErrorLensView: View {
         .padding(.bottom, 14)
     }
 }
+

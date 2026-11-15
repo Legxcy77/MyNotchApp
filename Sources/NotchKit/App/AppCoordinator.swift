@@ -65,6 +65,12 @@ final class AppCoordinator {
                 ))
             }
         }
+        store.onCopyText = { [weak self] text in
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            self?.store.send(.setClipboardOpen(false))
+            self?.store.post(Toast(title: "Copied transformed value", symbol: "doc.on.doc", tint: .info, duration: .seconds(2)))
+        }
         statusBar.onMenuVisibilityChanged = { [weak self] open in
             guard let self else { return }
             self.isMenuOpen = open

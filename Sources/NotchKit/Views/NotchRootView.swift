@@ -119,6 +119,7 @@ public struct NotchRootView: View {
                     history: store.state.clipboard,
                     clearance: geometry.cameraClearance,
                     onPaste: { store.paste($0) },
+                    onCopyTransformed: { store.copyTransformed($0) },
                     onClose: { store.send(.setClipboardOpen(false)) }
                 )
                 .transition(.islandContent)

@@ -4,6 +4,7 @@ struct ClipboardView: View {
     let history: ClipboardHistory
     let clearance: CGFloat
     let onPaste: (ClipboardItem) -> Void
+    let onCopyTransformed: (String) -> Void
     let onClose: () -> Void
 
     @State private var query = ""
@@ -12,6 +13,11 @@ struct ClipboardView: View {
 
     private var results: [ClipboardItem] {
         history.filtered(by: query)
+    }
+
+    private var smartMatch: SmartClipboardMatch? {
+        guard case .text(let latest) = history.items.first?.content else { return nil }
+        return SmartClipboardDetector.detect(latest)
     }
 
     var body: some View {
@@ -44,6 +50,37 @@ struct ClipboardView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            if let match = smartMatch {
+                HStack(spacing: 8) {
+                    if case .hexColor(_, let r, let g, let b, let a) = match {
+                        Circle()
+                            .fill(Color(red: r, green: g, blue: b, opacity: a))
+                            .frame(width: 12, height: 12)
+                    }
+                    Text(match.badgeTitle)
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(Toast.Tint.info.color)
+                    Text(match.summary)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.65))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer(minLength: 0)
+                    Button(match.actionLabel) {
+                        onCopyTransformed(match.copyableResult)
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Toast.Tint.info.color.opacity(0.28), in: Capsule())
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            }
 
             if results.isEmpty {
                 Spacer()

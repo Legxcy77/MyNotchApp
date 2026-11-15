@@ -26,6 +26,7 @@ public final class NotchStore {
     @ObservationIgnored public var onAction: (@MainActor (Toast.Action) -> Void)?
     @ObservationIgnored public var onServerAction: (@MainActor (DevServerAction) -> Void)?
     @ObservationIgnored public var onPasteClipboard: (@MainActor (ClipboardItem) -> Void)?
+    @ObservationIgnored public var onCopyText: (@MainActor (String) -> Void)?
     @ObservationIgnored public var onErrorAction: (@MainActor (ErrorLensAction) -> Void)?
     @ObservationIgnored public var onModeChanged: (@MainActor (NotchMode) -> Void)?
     @ObservationIgnored private var expiryTasks: [UUID: Task<Void, Never>] = [:]
@@ -53,6 +54,10 @@ public final class NotchStore {
 
     public func paste(_ item: ClipboardItem) {
         onPasteClipboard?(item)
+    }
+
+    public func copyTransformed(_ text: String) {
+        onCopyText?(text)
     }
 
     public func openErrorLens(for toast: Toast) {
