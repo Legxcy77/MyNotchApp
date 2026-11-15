@@ -47,6 +47,16 @@ public struct NotchRootView: View {
             .frame(width: size.width, height: size.height, alignment: .top)
             .background(.black, in: shape)
             .clipShape(shape)
+            .overlay {
+                if let focus = store.state.focusSession {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        let progress = focus.progress(at: context.date)
+                        shape
+                            .trim(from: 0, to: CGFloat(progress))
+                            .stroke(Toast.Tint.info.color.opacity(0.85), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    }
+                }
+            }
             .shadow(color: .black.opacity(mode == .collapsed && !showsEars ? 0 : 0.4), radius: 20, y: 10)
             .padding(.top, geometry.topInset)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -90,12 +100,17 @@ public struct NotchRootView: View {
                     nowPlaying: store.state.nowPlaying,
                     lyrics: store.state.lyrics,
                     nextMeeting: store.state.nextMeeting,
+                    focusSession: store.state.focusSession,
+                    focusDurationMinutes: store.state.focusDurationMinutes,
                     onSelectTab: { store.send(.setExpandedTab($0)) },
                     onClearFinished: { store.send(.clearFinishedAgents) },
                     onClearRunHistory: { store.send(.clearRunHistory) },
                     onServerAction: { store.perform($0) },
                     onMediaCommand: { store.performMedia($0) },
                     onJoinMeeting: { NSWorkspace.shared.open($0) },
+                    onStartFocus: { store.startFocus(minutes: $0) },
+                    onStopFocus: { store.stopFocus() },
+                    onSelectFocusMinutes: { store.send(.setFocusDuration($0)) },
                     onRemoveFile: { store.send(.removeStagedFile($0)) },
                     onClearFiles: { store.send(.clearStagedFiles) }
                 )

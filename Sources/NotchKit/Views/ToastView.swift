@@ -128,12 +128,17 @@ struct ExpandedView: View {
     let nowPlaying: NowPlayingTrack?
     let lyrics: LRCDocument?
     let nextMeeting: UpcomingMeeting?
+    let focusSession: FocusSession?
+    let focusDurationMinutes: Int
     let onSelectTab: (ExpandedTab) -> Void
     let onClearFinished: () -> Void
     let onClearRunHistory: () -> Void
     let onServerAction: (NotchStore.DevServerAction) -> Void
     let onMediaCommand: (MediaCommand) -> Void
     let onJoinMeeting: (URL) -> Void
+    let onStartFocus: (Int) -> Void
+    let onStopFocus: () -> Void
+    let onSelectFocusMinutes: (Int) -> Void
     let onRemoveFile: (URL) -> Void
     let onClearFiles: () -> Void
 
@@ -168,6 +173,12 @@ struct ExpandedView: View {
                             onSelectTab(.media)
                         }
                         ExpandedTabPill(
+                            title: "Focus",
+                            isSelected: expandedTab == .focus
+                        ) {
+                            onSelectTab(.focus)
+                        }
+                        ExpandedTabPill(
                             title: "Mirror",
                             isSelected: expandedTab == .mirror
                         ) {
@@ -197,6 +208,14 @@ struct ExpandedView: View {
 
             if expandedTab == .media {
                 MediaExpandedView(track: nowPlaying, lyrics: lyrics, onCommand: onMediaCommand)
+            } else if expandedTab == .focus {
+                FocusTabView(
+                    session: focusSession,
+                    selectedMinutes: focusDurationMinutes,
+                    onSelectMinutes: onSelectFocusMinutes,
+                    onStart: onStartFocus,
+                    onStop: onStopFocus
+                )
             } else if expandedTab == .mirror {
                 CameraMirrorView()
             } else if expandedTab == .timeline {
@@ -311,6 +330,84 @@ struct ExpandedView: View {
         .padding(.horizontal, 22)
         .padding(.top, clearance + 12)
         .padding(.bottom, 14)
+    }
+}
+
+private struct FocusTabView: View {
+    let session: FocusSession?
+    let selectedMinutes: Int
+    let onSelectMinutes: (Int) -> Void
+    let onStart: (Int) -> Void
+    let onStop: () -> Void
+
+    private let presets = [5, 15, 25, 45]
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("FOCUS TIMER")
+                        .font(.system(size: 10, weight: .semibold))
+                        .tracking(0.8)
+                        .foregroundStyle(.white.opacity(0.45))
+
+                    if let session {
+                        Text(session.formattedRemaining(at: context.date))
+                            .font(.system(size: 32, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(.white)
+                    } else {
+                        Text("\(selectedMinutes):00")
+                            .font(.system(size: 32, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(.white.opacity(0.85))
+                    }
+
+                    HStack(spacing: 6) {
+                        ForEach(presets, id: \.self) { mins in
+                            Button("\(mins)m") {
+                                onSelectMinutes(mins)
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundStyle(selectedMinutes == mins ? .black : .white.opacity(0.75))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3.5)
+                            .background(selectedMinutes == mins ? .white : .white.opacity(0.12), in: Capsule())
+                        }
+                    }
+                }
+
+                Spacer()
+
+                if session != nil {
+                    Button {
+                        onStop()
+                    } label: {
+                        Label("Stop", systemImage: "stop.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Toast.Tint.failure.color.opacity(0.85), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Button {
+                        onStart(selectedMinutes)
+                    } label: {
+                        Label("Start Focus", systemImage: "play.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(.white, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
     }
 }
 

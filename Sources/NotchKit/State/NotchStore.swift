@@ -30,6 +30,7 @@ public final class NotchStore {
     @ObservationIgnored public var onErrorAction: (@MainActor (ErrorLensAction) -> Void)?
     @ObservationIgnored public var onRunTask: (@MainActor (RepoTask) -> Void)?
     @ObservationIgnored public var onMediaCommand: (@MainActor (MediaCommand) -> Void)?
+    @ObservationIgnored public var onFocusChanged: (@MainActor (FocusSession?) -> Void)?
     @ObservationIgnored public var onModeChanged: (@MainActor (NotchMode) -> Void)?
     @ObservationIgnored public var onToastShown: (@MainActor (Toast) -> Void)?
     @ObservationIgnored private var expiryTasks: [UUID: Task<Void, Never>] = [:]
@@ -85,6 +86,16 @@ public final class NotchStore {
 
     public func performMedia(_ command: MediaCommand) {
         onMediaCommand?(command)
+    }
+
+    public func startFocus(minutes: Int) {
+        send(.startFocus(minutes: minutes, at: .now))
+        onFocusChanged?(state.focusSession)
+    }
+
+    public func stopFocus() {
+        send(.stopFocus)
+        onFocusChanged?(nil)
     }
 
     public func activate(_ toast: Toast) {

@@ -45,7 +45,7 @@ Legend: `[x]` done · `[ ]` todo · (U) unit-tested · (V) verified by eye on a 
 ## Tier A
 - [x] **A1 Meeting Countdown**: EventKit, next event with a Meet/Zoom/Teams URL. At T-5min a persistent ear countdown with a Join button. Gate: (V).
 - [x] **A2 Camera Mirror**: an expanded tab with an AVCaptureSession preview clipped to the island shape. The session only runs while visible. Gate: (V) the camera light turns off when collapsed.
-- [ ] **A3 Focus Ring**: Pomodoro drawn as a progress stroke around the island outline (`Shape.trim`). Optionally toggle a Focus mode via `shortcuts run "<name>"`. Gate: (V).
+- [x] **A3 Focus Ring**: Pomodoro drawn as a progress stroke around the island outline (`Shape.trim`). Optionally toggle a Focus mode via `shortcuts run "<name>"`. Gate: (V).
 - [ ] **A4 GitHub Pulse**: `gh api` every 60s for the owner's open PRs (checks status) + review requests. Toast on state change only. Gate: (V).
 - [ ] **A5 System Pulse**: CPU/RAM/net sparkline in the expanded view. Alert when a process is >90% CPU for 30s, with a Kill action. Gate: (V).
 - [ ] **A6 Quick AI**: hotkey opens a prompt in the island and streams answers from the Gemini API (key in Keychain). Presets: translate TH↔EN, explain error (from D1), explain regex/clipboard. Gate: (V).
@@ -77,3 +77,4 @@ Legend: `[x]` done · `[ ]` todo · (U) unit-tested · (V) verified by eye on a 
 - 2026-11-15: M3–M4 implemented (`NowPlayingTrack`, `NowPlayingService` with Spotify/Music `DistributedNotificationCenter` + AppleScript + optional `MediaRemoteNowPlayingProvider` behind `NowPlayingProvider` protocol, `MediaEarsView` artwork + live bars, `MediaExpandedView` side-by-side player + auto-scrolling LRCLIB lyrics). 66/66 tests green, bundle rebuilt. M3/M4 (V) pending.
 - 2026-11-15: A1 implemented (`MeetingDetector`, `MeetingMonitor` via EventKit, `MeetingEarsView` T-5min countdown, Join button in `ExpandedView` and clickable meeting toast). 68/68 tests green. M3/M4 (V) verified by owner; A1 (V) pending.
 - 2026-11-15: A2 implemented (`CameraMirrorView` using `AVCaptureSession` + `AVCaptureVideoPreviewLayer` started on appear and stopped on dismantle/collapse). 68/68 tests green. A2 (V) pending.
+- 2026-11-15: A3 implemented (`FocusSession`, `Shape.trim` progress stroke around island outline in `NotchRootView`, `FocusTabView` with 5/15/25/45m presets, optional `shortcuts run` hook). 70/70 tests green. A3 (V) pending.

@@ -35,6 +35,7 @@ final class AppCoordinator {
     private let lyricsCache = LyricsCache()
     private var lastLyricsTrackKey: String?
     private var lyricsTask: Task<Void, Never>?
+    private var focusTask: Task<Void, Never>?
     private var isMenuOpen = false
 
     init() {
@@ -81,6 +82,9 @@ final class AppCoordinator {
         }
         store.onMediaCommand = { [weak self] command in
             self?.nowPlaying?.perform(command)
+        }
+        store.onFocusChanged = { [weak self] session in
+            self?.handleFocusChanged(session)
         }
         store.onPasteClipboard = { [weak self] item in
             guard let self else { return }
@@ -158,6 +162,38 @@ final class AppCoordinator {
         startLogPin()
         startNowPlaying()
         startMeetingMonitor()
+    }
+
+    private func handleFocusChanged(_ session: FocusSession?) {
+        focusTask?.cancel()
+        focusTask = nil
+
+        if let shortcutName = UserDefaults.standard.string(forKey: "notch.focusShortcut"), !shortcutName.isEmpty {
+            Task.detached(priority: .utility) {
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: "/usr/bin/shortcuts")
+                p.arguments = ["run", shortcutName]
+                p.standardOutput = Pipe()
+                p.standardError = Pipe()
+                try? p.run()
+            }
+        }
+
+        guard let session else { return }
+        let seconds = session.duration
+        focusTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(seconds))
+            guard !Task.isCancelled, let self else { return }
+            self.store.send(.stopFocus)
+            self.store.post(Toast(
+                title: "Focus complete",
+                subtitle: "\(Int(seconds / 60))m session finished",
+                symbol: "checkmark.circle.fill",
+                tint: .success,
+                priority: .high,
+                duration: .seconds(6)
+            ))
+        }
     }
 
     private func startMeetingMonitor() {

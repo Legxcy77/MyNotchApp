@@ -18,6 +18,7 @@ public struct ErrorLensPayload: Equatable, Sendable {
 public enum ExpandedTab: String, Equatable, Sendable, CaseIterable {
     case overview
     case media
+    case focus
     case mirror
     case timeline
 }
@@ -43,6 +44,8 @@ public struct NotchState: Equatable, Sendable {
     public var nowPlaying: NowPlayingTrack?
     public var lyrics: LRCDocument?
     public var nextMeeting: UpcomingMeeting?
+    public var focusSession: FocusSession?
+    public var focusDurationMinutes: Int = 25
 
     public init() {}
 
@@ -111,6 +114,9 @@ public enum NotchEvent: Sendable, Equatable {
     case nowPlayingUpdated(NowPlayingTrack?)
     case lyricsUpdated(LRCDocument?)
     case nextMeetingUpdated(UpcomingMeeting?)
+    case startFocus(minutes: Int, at: Date)
+    case stopFocus
+    case setFocusDuration(Int)
 }
 
 public enum NotchEffect: Sendable, Equatable {
@@ -210,6 +216,16 @@ public enum NotchReducer {
             return []
         case .nextMeetingUpdated(let meeting):
             s.nextMeeting = meeting
+            return []
+        case .startFocus(let minutes, let now):
+            s.focusDurationMinutes = max(1, minutes)
+            s.focusSession = FocusSession(startedAt: now, duration: TimeInterval(max(1, minutes) * 60))
+            return []
+        case .stopFocus:
+            s.focusSession = nil
+            return []
+        case .setFocusDuration(let minutes):
+            s.focusDurationMinutes = max(1, minutes)
             return []
         }
     }
