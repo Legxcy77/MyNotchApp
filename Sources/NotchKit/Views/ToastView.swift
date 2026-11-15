@@ -131,17 +131,26 @@ struct ExpandedView: View {
     let focusSession: FocusSession?
     let focusDurationMinutes: Int
     let systemPulse: [SystemPulseSample]
+    let audioState: AudioStateSnapshot
+    let notesPayload: NotesAndTasksPayload
+    let androidDrop: AndroidDropStatus
     let latestClipboardText: String?
     let onSelectTab: (ExpandedTab) -> Void
     let onClearFinished: () -> Void
     let onClearRunHistory: () -> Void
     let onServerAction: (NotchStore.DevServerAction) -> Void
     let onMediaCommand: (MediaCommand) -> Void
+    let onAudioAction: (NotchStore.AudioAction) -> Void
     let onQuickTool: (NotchStore.QuickToolAction) -> Void
     let onJoinMeeting: (URL) -> Void
     let onStartFocus: (Int) -> Void
     let onStopFocus: () -> Void
     let onSelectFocusMinutes: (Int) -> Void
+    let onUpdateNote: (String) -> Void
+    let onAddTask: (String) -> Void
+    let onToggleTask: (UUID) -> Void
+    let onRemoveTask: (UUID) -> Void
+    let onToggleAndroidDrop: () -> Void
     let onRemoveFile: (URL) -> Void
     let onClearFiles: () -> Void
 
@@ -172,6 +181,12 @@ struct ExpandedView: View {
                         ExpandedTabPill(symbol: "wrench.and.screwdriver.fill", title: nil, isSelected: expandedTab == .tools) {
                             onSelectTab(.tools)
                         }
+                        ExpandedTabPill(symbol: "note.text", title: nil, isSelected: expandedTab == .notes) {
+                            onSelectTab(.notes)
+                        }
+                        ExpandedTabPill(symbol: "iphone.and.arrow.forward", title: nil, isSelected: expandedTab == .drop) {
+                            onSelectTab(.drop)
+                        }
                         ExpandedTabPill(symbol: "timer", title: nil, isSelected: expandedTab == .focus) {
                             onSelectTab(.focus)
                         }
@@ -201,9 +216,30 @@ struct ExpandedView: View {
             }
 
             if expandedTab == .media {
-                MediaExpandedView(track: nowPlaying, lyrics: lyrics, onCommand: onMediaCommand)
+                MediaExpandedView(
+                    track: nowPlaying,
+                    lyrics: lyrics,
+                    audioState: audioState,
+                    onCommand: onMediaCommand,
+                    onAudioAction: onAudioAction
+                )
             } else if expandedTab == .tools {
                 ToolsTabView(latestClipboardText: latestClipboardText, onAction: onQuickTool)
+            } else if expandedTab == .notes {
+                NotesTabView(
+                    payload: notesPayload,
+                    onUpdateNote: onUpdateNote,
+                    onAddTask: onAddTask,
+                    onToggleTask: onToggleTask,
+                    onRemoveTask: onRemoveTask
+                )
+            } else if expandedTab == .drop {
+                AndroidDropTabView(
+                    status: androidDrop,
+                    stagedFiles: stagedFiles,
+                    onToggleServer: onToggleAndroidDrop,
+                    onClearFiles: onClearFiles
+                )
             } else if expandedTab == .focus {
                 FocusTabView(
                     session: focusSession,
@@ -833,6 +869,250 @@ private struct AgentSessionRow: View {
             Text(elapsedText)
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(.white.opacity(0.45))
+        }
+    }
+}
+
+struct FocusEarsView: View {
+    let notchWidth: CGFloat
+    let session: FocusSession
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let rem = Int(max(0, session.endDate.timeIntervalSince(context.date)))
+            let text = String(format: "%02d:%02d", rem / 60, rem % 60)
+            HStack(spacing: 0) {
+                Image(systemName: "timer")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Toast.Tint.waiting.color)
+                    .frame(width: IslandLayout.earWidth)
+
+                Spacer()
+                    .frame(width: max(0, notchWidth))
+
+                Text(text)
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.9))
+                    .frame(width: IslandLayout.earWidth)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
+private struct NotesTabView: View {
+    let payload: NotesAndTasksPayload
+    let onUpdateNote: (String) -> Void
+    let onAddTask: (String) -> Void
+    let onToggleTask: (UUID) -> Void
+    let onRemoveTask: (UUID) -> Void
+
+    @State private var newTaskText = ""
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            // Left Bento Box: Quick Scratchpad Note
+            VStack(alignment: .leading, spacing: 6) {
+                Text("QUICK NOTE")
+                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.4))
+                TextEditor(text: Binding(
+                    get: { payload.note },
+                    set: { onUpdateNote($0) }
+                ))
+                .font(.system(size: 11.5))
+                .foregroundStyle(.white.opacity(0.92))
+                .scrollContentBackground(.hidden)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(.white.opacity(0.065), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            // Right Bento Box: Quick Tasks Checklist
+            VStack(alignment: .leading, spacing: 6) {
+                Text("TASKS")
+                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.4))
+
+                HStack(spacing: 6) {
+                    TextField("Add a task…", text: $newTaskText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.white)
+                        .onSubmit {
+                            let t = newTaskText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !t.isEmpty else { return }
+                            onAddTask(t)
+                            newTaskText = ""
+                        }
+                    Button {
+                        let t = newTaskText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !t.isEmpty else { return }
+                        onAddTask(t)
+                        newTaskText = ""
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.white.opacity(0.8))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(payload.tasks) { task in
+                            HStack(spacing: 6) {
+                                Button {
+                                    onToggleTask(task.id)
+                                } label: {
+                                    Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(task.isDone ? Toast.Tint.success.color : .white.opacity(0.5))
+                                }
+                                .buttonStyle(.plain)
+
+                                Text(task.title)
+                                    .font(.system(size: 11.5))
+                                    .foregroundStyle(task.isDone ? .white.opacity(0.4) : .white.opacity(0.9))
+                                    .strikethrough(task.isDone)
+                                    .lineLimit(1)
+
+                                Spacer(minLength: 0)
+
+                                Button {
+                                    onRemoveTask(task.id)
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(.white.opacity(0.35))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(.white.opacity(0.065), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+    }
+}
+
+private struct AndroidDropTabView: View {
+    let status: AndroidDropStatus
+    let stagedFiles: [URL]
+    let onToggleServer: () -> Void
+    let onClearFiles: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            // Left Bento Box: Wi-Fi QR Drop Server
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("MAC ↔ ANDROID DROP")
+                        .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.4))
+                    Spacer()
+                    Button(status.isRunning ? "Stop" : "Start Wi-Fi") {
+                        onToggleServer()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(status.isRunning ? .black : .white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(status.isRunning ? Toast.Tint.success.color : Color.white.opacity(0.14), in: Capsule())
+                }
+
+                if status.isRunning, let data = status.qrPNGData, let img = NSImage(data: data), let urlStr = status.urlString {
+                    HStack(spacing: 10) {
+                        Image(nsImage: img)
+                            .interpolation(.none)
+                            .resizable()
+                            .frame(width: 72, height: 72)
+                            .background(.white, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Scan with Android")
+                                .font(.system(size: 11.5, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.9))
+                            Text(urlStr)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.white.opacity(0.6))
+                                .lineLimit(1)
+                            if status.receivedCount > 0 {
+                                Text("Received \(status.receivedCount) file(s)")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(Toast.Tint.success.color)
+                            }
+                        }
+                    }
+                } else {
+                    Text("Start Wi-Fi Drop to scan QR from Android and send or receive files.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(.white.opacity(0.065), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            // Right Bento Box: Staged Files & NotchDrop Folder
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("STAGED (\(stagedFiles.count))")
+                        .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.4))
+                    Spacer()
+                    if !stagedFiles.isEmpty {
+                        Button("Clear", action: onClearFiles)
+                            .buttonStyle(.plain)
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
+                }
+
+                if stagedFiles.isEmpty {
+                    Text("Drag files into the Notch to share them to Android.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.45))
+                } else {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(stagedFiles.prefix(4), id: \.self) { url in
+                                Text(url.lastPathComponent)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(.white.opacity(0.85))
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                Button {
+                    let dir = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
+                        .appendingPathComponent("NotchDrop", isDirectory: true)
+                    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                    NSWorkspace.shared.open(dir)
+                } label: {
+                    Label("Open NotchDrop Folder", systemImage: "folder.fill")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .frame(maxWidth: .infinity, minHeight: 28)
+                        .background(.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(.white.opacity(0.065), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 }

@@ -1,10 +1,13 @@
+import AppKit
 import SwiftUI
 
 struct ClipboardView: View {
     let history: ClipboardHistory
+    let isPaused: Bool
     let clearance: CGFloat
     let onPaste: (ClipboardItem) -> Void
     let onCopyTransformed: (String) -> Void
+    let onTogglePause: () -> Void
     let onClose: () -> Void
 
     @State private var query = ""
@@ -35,6 +38,20 @@ struct ClipboardView: View {
                     .onSubmit {
                         pasteSelected()
                     }
+
+                Button(action: onTogglePause) {
+                    HStack(spacing: 4) {
+                        Image(systemName: isPaused ? "pause.circle.fill" : "record.circle")
+                            .font(.system(size: 10))
+                        Text(isPaused ? "Paused" : "Pause")
+                            .font(.system(size: 10.5, weight: .medium))
+                    }
+                    .foregroundStyle(isPaused ? Toast.Tint.waiting.color : .white.opacity(0.6))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(.white.opacity(0.08), in: Capsule())
+                }
+                .buttonStyle(.plain)
 
                 Text("⌥⌘V")
                     .font(.system(size: 10, design: .monospaced))
@@ -91,9 +108,9 @@ struct ClipboardView: View {
                 Spacer()
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 3) {
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
                         ForEach(Array(results.enumerated()), id: \.element.id) { index, item in
-                            ClipboardRow(item: item, isSelected: index == selectedIndex)
+                            ClipboardCard(item: item, isSelected: index == selectedIndex)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     onPaste(item)
@@ -133,45 +150,54 @@ struct ClipboardView: View {
     }
 }
 
-private struct ClipboardRow: View {
+private struct ClipboardCard: View {
     let item: ClipboardItem
     let isSelected: Bool
 
     var body: some View {
-        HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 6) {
             switch item.content {
-            case .text:
-                Image(systemName: "doc.on.clipboard")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.45))
-                    .frame(width: 20, height: 20)
             case .image(let data):
                 if let img = NSImage(data: data) {
                     Image(nsImage: img)
                         .resizable()
-                        .scaledToFill()
-                        .frame(width: 20, height: 20)
-                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 64)
+                        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                } else {
+                    Label(item.previewText, systemImage: "photo")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.8))
                 }
+            case .text:
+                Text(item.previewText)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .lineLimit(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            Text(item.previewText)
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(.white.opacity(isSelected ? 1.0 : 0.78))
-                .lineLimit(1)
-                .truncationMode(.tail)
+            HStack {
+                Image(systemName: {
+                    if case .image = item.content { return "photo" }
+                    return "doc.on.clipboard"
+                }())
+                .font(.system(size: 9.5))
+                .foregroundStyle(.white.opacity(0.45))
 
-            Spacer(minLength: 0)
+                Spacer()
 
-            Text(item.copiedAt, style: .time)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.35))
+                Text(item.copiedAt, format: .dateTime.hour().minute())
+                    .font(.system(size: 9.5, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.4))
+            }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .padding(8)
+        .frame(maxWidth: .infinity, minHeight: 74, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(.white.opacity(isSelected ? 0.14 : 0))
+            isSelected ? Color.white.opacity(0.14) : Color.white.opacity(0.065),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
         )
     }
 }

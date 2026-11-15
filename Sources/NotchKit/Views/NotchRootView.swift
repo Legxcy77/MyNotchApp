@@ -82,6 +82,9 @@ public struct NotchRootView: View {
                           MeetingDetector.isWithinCountdownWindow(meeting) {
                     MeetingEarsView(notchWidth: earSpacerWidth, meeting: meeting)
                         .transition(.islandContent)
+                } else if let focus = store.state.focusSession {
+                    FocusEarsView(notchWidth: earSpacerWidth, session: focus)
+                        .transition(.islandContent)
                 } else if let track = store.state.nowPlaying, track.isPlaying {
                     MediaEarsView(notchWidth: earSpacerWidth, track: track)
                         .transition(.islandContent)
@@ -107,17 +110,26 @@ public struct NotchRootView: View {
                     focusSession: store.state.focusSession,
                     focusDurationMinutes: store.state.focusDurationMinutes,
                     systemPulse: store.state.systemPulse,
+                    audioState: store.state.audioState,
+                    notesPayload: store.state.notesPayload,
+                    androidDrop: store.state.androidDrop,
                     latestClipboardText: latestClip,
                     onSelectTab: { store.send(.setExpandedTab($0)) },
                     onClearFinished: { store.send(.clearFinishedAgents) },
                     onClearRunHistory: { store.send(.clearRunHistory) },
                     onServerAction: { store.perform($0) },
                     onMediaCommand: { store.performMedia($0) },
+                    onAudioAction: { store.performAudio($0) },
                     onQuickTool: { store.performQuickTool($0) },
                     onJoinMeeting: { NSWorkspace.shared.open($0) },
                     onStartFocus: { store.startFocus(minutes: $0) },
                     onStopFocus: { store.stopFocus() },
                     onSelectFocusMinutes: { store.send(.setFocusDuration($0)) },
+                    onUpdateNote: { store.updateNote($0) },
+                    onAddTask: { store.addTask($0) },
+                    onToggleTask: { store.toggleTask($0) },
+                    onRemoveTask: { store.removeTask($0) },
+                    onToggleAndroidDrop: { store.toggleAndroidDrop() },
                     onRemoveFile: { store.send(.removeStagedFile($0)) },
                     onClearFiles: { store.send(.clearStagedFiles) }
                 )
@@ -157,9 +169,11 @@ public struct NotchRootView: View {
             case .clipboard:
                 ClipboardView(
                     history: store.state.clipboard,
+                    isPaused: store.state.isClipboardPaused,
                     clearance: geometry.cameraClearance,
                     onPaste: { store.paste($0) },
                     onCopyTransformed: { store.copyTransformed($0) },
+                    onTogglePause: { store.send(.toggleClipboardPaused) },
                     onClose: { store.send(.setClipboardOpen(false)) }
                 )
                 .transition(.islandContent)

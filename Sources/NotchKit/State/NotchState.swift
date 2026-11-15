@@ -20,6 +20,8 @@ public enum ExpandedTab: String, Equatable, Sendable, CaseIterable {
     case overview
     case media
     case tools
+    case notes
+    case drop
     case focus
     case mirror
     case timeline
@@ -73,6 +75,10 @@ public struct NotchState: Equatable, Sendable {
     public var focusSession: FocusSession?
     public var focusDurationMinutes: Int = 25
     public var systemPulse: [SystemPulseSample] = []
+    public var audioState = AudioStateSnapshot()
+    public var isClipboardPaused = false
+    public var notesPayload = NotesAndTasksPayload()
+    public var androidDrop = AndroidDropStatus()
 
     public init() {}
 
@@ -98,7 +104,7 @@ public struct NotchState: Equatable, Sendable {
     }
 
     public var showsEars: Bool {
-        hasActiveAgents || hasActiveMedia || hasUrgentMeeting
+        hasActiveAgents || hasActiveMedia || hasUrgentMeeting || focusSession != nil
     }
 
     /// Derived, never stored, so impossible states can't exist.
@@ -153,6 +159,13 @@ public enum NotchEvent: Sendable, Equatable {
     case stopFocus
     case setFocusDuration(Int)
     case systemPulseUpdated([SystemPulseSample])
+    case audioStateUpdated(AudioStateSnapshot)
+    case toggleClipboardPaused
+    case setQuickNote(String)
+    case addQuickTask(String)
+    case toggleQuickTask(UUID)
+    case removeQuickTask(UUID)
+    case androidDropUpdated(AndroidDropStatus)
 }
 
 public enum NotchEffect: Sendable, Equatable {
@@ -206,6 +219,7 @@ public enum NotchReducer {
             s.stagedFiles.removeAll()
             return []
         case .clipboardRecorded(let content, let date):
+            guard !s.isClipboardPaused else { return [] }
             s.clipboard.record(content, at: date)
             return []
         case .toggleClipboard:
@@ -297,6 +311,31 @@ public enum NotchReducer {
             return []
         case .systemPulseUpdated(let samples):
             s.systemPulse = samples
+            return []
+        case .audioStateUpdated(let audio):
+            s.audioState = audio
+            return []
+        case .toggleClipboardPaused:
+            s.isClipboardPaused.toggle()
+            return []
+        case .setQuickNote(let text):
+            s.notesPayload.note = text
+            return []
+        case .addQuickTask(let title):
+            let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return [] }
+            s.notesPayload.tasks.insert(QuickTaskItem(title: trimmed), at: 0)
+            return []
+        case .toggleQuickTask(let id):
+            if let idx = s.notesPayload.tasks.firstIndex(where: { $0.id == id }) {
+                s.notesPayload.tasks[idx].isDone.toggle()
+            }
+            return []
+        case .removeQuickTask(let id):
+            s.notesPayload.tasks.removeAll { $0.id == id }
+            return []
+        case .androidDropUpdated(let status):
+            s.androidDrop = status
             return []
         }
     }

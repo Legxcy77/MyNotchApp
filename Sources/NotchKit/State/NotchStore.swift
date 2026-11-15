@@ -33,6 +33,13 @@ public final class NotchStore {
         case openClipboard
     }
 
+    public enum AudioAction: Sendable {
+        case setVolume(Float)
+        case toggleMute
+        case selectDevice(UInt32)
+        case refresh
+    }
+
     @ObservationIgnored public var hoverExitDelay: Duration = .milliseconds(180)
     @ObservationIgnored public var onAction: (@MainActor (Toast.Action) -> Void)?
     @ObservationIgnored public var onServerAction: (@MainActor (DevServerAction) -> Void)?
@@ -43,6 +50,9 @@ public final class NotchStore {
     @ObservationIgnored public var onAskAI: (@MainActor (String) -> Void)?
     @ObservationIgnored public var onMediaCommand: (@MainActor (MediaCommand) -> Void)?
     @ObservationIgnored public var onQuickTool: (@MainActor (QuickToolAction) -> Void)?
+    @ObservationIgnored public var onAudioAction: (@MainActor (AudioAction) -> Void)?
+    @ObservationIgnored public var onToggleAndroidDrop: (@MainActor () -> Void)?
+    @ObservationIgnored public var onNotesUpdated: (@MainActor (NotesAndTasksPayload) -> Void)?
     @ObservationIgnored public var onFocusChanged: (@MainActor (FocusSession?) -> Void)?
     @ObservationIgnored public var onModeChanged: (@MainActor (NotchMode) -> Void)?
     @ObservationIgnored public var onToastShown: (@MainActor (Toast) -> Void)?
@@ -107,6 +117,34 @@ public final class NotchStore {
 
     public func performQuickTool(_ action: QuickToolAction) {
         onQuickTool?(action)
+    }
+
+    public func performAudio(_ action: AudioAction) {
+        onAudioAction?(action)
+    }
+
+    public func toggleAndroidDrop() {
+        onToggleAndroidDrop?()
+    }
+
+    public func updateNote(_ text: String) {
+        send(.setQuickNote(text))
+        onNotesUpdated?(state.notesPayload)
+    }
+
+    public func addTask(_ title: String) {
+        send(.addQuickTask(title))
+        onNotesUpdated?(state.notesPayload)
+    }
+
+    public func toggleTask(_ id: UUID) {
+        send(.toggleQuickTask(id))
+        onNotesUpdated?(state.notesPayload)
+    }
+
+    public func removeTask(_ id: UUID) {
+        send(.removeQuickTask(id))
+        onNotesUpdated?(state.notesPayload)
     }
 
     public func startFocus(minutes: Int) {

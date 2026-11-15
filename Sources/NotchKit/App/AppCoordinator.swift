@@ -33,6 +33,7 @@ final class AppCoordinator {
     private var githubMonitor: GitHubPulseMonitor?
     private var systemPulseMonitor: SystemPulseMonitor?
     private var keyboardStatusMonitor: KeyboardStatusMonitor?
+    private var androidDropServer: AndroidDropServer?
     private var notifiedMeetingIDs: Set<String> = []
     private let lrclibClient = LRCLibClient()
     private let lyricsCache = LyricsCache()
@@ -175,6 +176,66 @@ final class AppCoordinator {
         startGitHubPulse()
         startSystemPulse()
         startKeyboardStatus()
+        startAudioNotesAndAndroidDrop()
+    }
+
+    private func startAudioNotesAndAndroidDrop() {
+        let savedNotes = QuickNotesStore.load()
+        if !savedNotes.note.isEmpty {
+            store.send(.setQuickNote(savedNotes.note))
+        }
+        for task in savedNotes.tasks.reversed() {
+            store.send(.addQuickTask(task.title))
+            if task.isDone, let added = store.state.notesPayload.tasks.first {
+                store.send(.toggleQuickTask(added.id))
+            }
+        }
+        store.onNotesUpdated = { payload in
+            QuickNotesStore.save(payload)
+        }
+
+        store.send(.audioStateUpdated(AudioDeviceService.currentSnapshot()))
+        store.onAudioAction = { [weak self] action in
+            switch action {
+            case .setVolume(let vol):
+                AudioDeviceService.setVolume(vol)
+            case .toggleMute:
+                let current = AudioDeviceService.currentSnapshot().isMuted
+                AudioDeviceService.setMuted(!current)
+            case .selectDevice(let id):
+                AudioDeviceService.setDefaultOutputDevice(id)
+            case .refresh:
+                break
+            }
+            self?.store.send(.audioStateUpdated(AudioDeviceService.currentSnapshot()))
+        }
+
+        let dropServer = AndroidDropServer(
+            onStatusChange: { [weak self] status in
+                self?.store.send(.androidDropUpdated(status))
+            },
+            onFilesReceived: { [weak self] urls in
+                guard let self, let folder = urls.first?.deletingLastPathComponent() else { return }
+                self.store.post(Toast(
+                    title: "Received \(urls.count) file(s) from Android",
+                    subtitle: urls.map(\.lastPathComponent).joined(separator: ", "),
+                    symbol: "iphone.and.arrow.forward",
+                    tint: .success,
+                    duration: .seconds(5),
+                    action: .openURL(folder)
+                ))
+            }
+        )
+        self.androidDropServer = dropServer
+        store.onToggleAndroidDrop = { [weak self] in
+            guard let self, let srv = self.androidDropServer else { return }
+            if self.store.state.androidDrop.isRunning {
+                srv.stop()
+            } else {
+                srv.updateStagedFiles(self.store.state.stagedFiles)
+                srv.start()
+            }
+        }
     }
 
     private func runQuickAI(prompt: String) {

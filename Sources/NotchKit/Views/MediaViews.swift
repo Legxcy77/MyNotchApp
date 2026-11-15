@@ -1,6 +1,76 @@
 import AppKit
 import SwiftUI
 
+struct AudioControlBar: View {
+    let audioState: AudioStateSnapshot
+    let onAudioAction: (NotchStore.AudioAction) -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button {
+                onAudioAction(.toggleMute)
+            } label: {
+                Image(systemName: audioState.isMuted || audioState.volume < 0.01 ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(audioState.isMuted ? Toast.Tint.waiting.color : .white.opacity(0.85))
+            }
+            .buttonStyle(.plain)
+
+            Slider(
+                value: Binding(
+                    get: { Double(audioState.volume) },
+                    set: { onAudioAction(.setVolume(Float($0))) }
+                ),
+                in: 0...1
+            )
+            .tint(.white)
+            .controlSize(.mini)
+
+            Text("\(Int(round(audioState.volume * 100)))%")
+                .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                .monospacedDigit()
+                .foregroundStyle(.white.opacity(0.6))
+                .frame(width: 34, alignment: .trailing)
+
+            if !audioState.devices.isEmpty {
+                let currentName = audioState.devices.first(where: \.isDefault)?.name ?? "Output"
+                Menu {
+                    ForEach(audioState.devices) { dev in
+                        Button {
+                            onAudioAction(.selectDevice(dev.id))
+                        } label: {
+                            HStack {
+                                Text(dev.name)
+                                if dev.isDefault { Image(systemName: "checkmark") }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "headphones")
+                            .font(.system(size: 10.5))
+                        Text(currentName)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(.white.opacity(0.85))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.white.opacity(0.09), in: Capsule())
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.white.opacity(0.065), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .onAppear {
+            onAudioAction(.refresh)
+        }
+    }
+}
+
 struct MediaEarsView: View {
     let notchWidth: CGFloat
     let track: NowPlayingTrack
@@ -60,35 +130,41 @@ private struct AudioBarsView: View {
 struct MediaExpandedView: View {
     let track: NowPlayingTrack?
     let lyrics: LRCDocument?
+    let audioState: AudioStateSnapshot
     let onCommand: (MediaCommand) -> Void
+    let onAudioAction: (NotchStore.AudioAction) -> Void
 
     var body: some View {
-        if let track {
-            TimelineView(.periodic(from: .now, by: 0.25)) { context in
-                let position = track.currentPosition(at: context.date)
-                HStack(spacing: 14) {
-                    playerColumn(track: track, position: position)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(spacing: 8) {
+            if let track {
+                TimelineView(.periodic(from: .now, by: 0.25)) { context in
+                    let position = track.currentPosition(at: context.date)
+                    HStack(spacing: 12) {
+                        playerColumn(track: track, position: position)
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.white.opacity(0.065), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                    Rectangle()
-                        .fill(.white.opacity(0.08))
-                        .frame(width: 1)
-                        .padding(.vertical, 4)
-
-                    lyricsColumn(position: position)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        lyricsColumn(position: position)
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.white.opacity(0.065), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
                 }
+            } else {
+                VStack(spacing: 6) {
+                    Image(systemName: "music.note")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.35))
+                    Text("Nothing playing. Play Spotify, Apple Music, or browser media.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.45))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(.white.opacity(0.065), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-        } else {
-            VStack(spacing: 6) {
-                Image(systemName: "music.note")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.35))
-                Text("Nothing playing. Play Spotify, Apple Music, or browser media.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.45))
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            AudioControlBar(audioState: audioState, onAudioAction: onAudioAction)
         }
     }
 
