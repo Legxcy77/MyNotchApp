@@ -210,6 +210,14 @@ public final class NotchWidgetConfig {
         }
     }
 
+    public var overviewLayout: [BentoPlacement] {
+        didSet {
+            if let data = try? JSONEncoder().encode(overviewLayout) {
+                defaults.set(data, forKey: Keys.overviewLayout)
+            }
+        }
+    }
+
     private enum Keys {
         static let prefix = "mynotch.widget."
         static let auroraIntensity = "mynotch.widget.auroraIntensity"
@@ -219,6 +227,7 @@ public final class NotchWidgetConfig {
         static let notchDisplayMode = "mynotch.widget.notchDisplayMode"
         static let islandOpacity = "mynotch.widget.islandOpacity"
         static let scrollToSwitchTabs = "mynotch.widget.scrollToSwitchTabs"
+        static let overviewLayout = "mynotch.widget.overviewLayout"
     }
 
     public init(defaults: UserDefaults = .standard) {
@@ -247,6 +256,39 @@ public final class NotchWidgetConfig {
         self.scrollToSwitchTabs = defaults.object(forKey: Keys.scrollToSwitchTabs) != nil
             ? defaults.bool(forKey: Keys.scrollToSwitchTabs)
             : true
+        if let data = defaults.data(forKey: Keys.overviewLayout),
+           let decoded = try? JSONDecoder().decode([BentoPlacement].self, from: data),
+           !decoded.isEmpty {
+            self.overviewLayout = decoded
+        } else {
+            self.overviewLayout = BentoLayoutEngine.defaultPlacements
+        }
+    }
+
+    public func addBentoTile(_ kind: BentoTileKind, size: BentoTileSize? = nil) {
+        overviewLayout.append(BentoPlacement(kind: kind, size: size ?? kind.defaultSize))
+    }
+
+    public func removeBentoTile(id: UUID) {
+        overviewLayout.removeAll { $0.id == id }
+    }
+
+    public func replaceBentoTile(id: UUID, with kind: BentoTileKind) {
+        guard let idx = overviewLayout.firstIndex(where: { $0.id == id }) else { return }
+        overviewLayout[idx].kind = kind
+    }
+
+    public func resizeBentoTile(id: UUID, to size: BentoTileSize) {
+        guard let idx = overviewLayout.firstIndex(where: { $0.id == id }) else { return }
+        overviewLayout[idx].size = size
+    }
+
+    public func moveBentoTile(id: UUID, offset: Int) {
+        guard let idx = overviewLayout.firstIndex(where: { $0.id == id }) else { return }
+        let target = max(0, min(overviewLayout.count - 1, idx + offset))
+        guard target != idx else { return }
+        let item = overviewLayout.remove(at: idx)
+        overviewLayout.insert(item, at: target)
     }
 
     public func isEnabled(_ widget: WidgetID) -> Bool {
@@ -274,6 +316,8 @@ public final class NotchWidgetConfig {
         notchDisplayMode = .smartHover
         islandOpacity = 1.0
         scrollToSwitchTabs = true
+        defaults.removeObject(forKey: Keys.overviewLayout)
+        overviewLayout = BentoLayoutEngine.defaultPlacements
     }
 }
 

@@ -46,6 +46,10 @@ public struct WidgetStudioView: View {
                 }
                 .padding(20)
 
+                freeformLayoutSection
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 16)
+
                 tunablesSection
                     .padding(.horizontal, 20)
                     .padding(.bottom, 22)
@@ -54,6 +58,83 @@ public struct WidgetStudioView: View {
         .frame(minWidth: 740, minHeight: 560)
         .background(Color(nsColor: .windowBackgroundColor))
         .preferredColorScheme(.dark)
+    }
+
+    private var freeformLayoutSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Notch Overview Bento Layout (Freeform)")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("วางการ์ดเล็ก/ใหญ่ผสมกันได้อิสระ เพิ่ม แทนที่ ปรับขนาด และจัดลำดับใหม่ได้ทันที")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Menu {
+                    ForEach(BentoTileKind.allCases) { kind in
+                        Button {
+                            config.addBentoTile(kind)
+                        } label: {
+                            Label(kind.title, systemImage: kind.symbol)
+                        }
+                    }
+                } label: {
+                    Label("Add Card", systemImage: "plus.circle.fill")
+                        .font(.system(size: 11.5, weight: .semibold))
+                }
+            }
+
+            ForEach(config.overviewLayout) { item in
+                HStack(spacing: 10) {
+                    Image(systemName: item.kind.symbol)
+                        .frame(width: 18)
+                        .foregroundStyle(.secondary)
+                    Text(item.kind.title)
+                        .font(.system(size: 12, weight: .medium))
+
+                    Spacer()
+
+                    Picker("", selection: Binding(
+                        get: { item.kind },
+                        set: { config.replaceBentoTile(id: item.id, with: $0) }
+                    )) {
+                        ForEach(BentoTileKind.allCases) { kind in
+                            Text(kind.title).tag(kind)
+                        }
+                    }
+                    .frame(width: 150)
+
+                    Picker("", selection: Binding(
+                        get: { item.size },
+                        set: { config.resizeBentoTile(id: item.id, to: $0) }
+                    )) {
+                        ForEach(BentoTileSize.allCases) { size in
+                            Text(size.shortLabel).tag(size)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 150)
+
+                    Button { config.moveBentoTile(id: item.id, offset: -1) } label: {
+                        Image(systemName: "arrow.up")
+                    }
+                    Button { config.moveBentoTile(id: item.id, offset: 1) } label: {
+                        Image(systemName: "arrow.down")
+                    }
+                    Button { config.removeBentoTile(id: item.id) } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+        )
     }
 
     private var headerBar: some View {

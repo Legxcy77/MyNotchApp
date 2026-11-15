@@ -211,6 +211,11 @@ struct ExpandedView: View {
     var releaseReadiness: ReleaseReadinessReport? = nil
     var changeImpact: ChangeImpactReport? = nil
     var envGuardReport: EnvGuardReport? = nil
+    var ciRuns: [CIRunRecord] = []
+    var databaseReport: DatabaseHealthReport? = nil
+    var dependencyFindings: [DependencyFinding] = []
+    var widgetConfig: NotchWidgetConfig? = nil
+    @State private var isEditingBento = false
     let onSelectTab: (ExpandedTab) -> Void
     let onClearFinished: () -> Void
     let onClearRunHistory: () -> Void
@@ -273,6 +278,20 @@ struct ExpandedView: View {
                     .padding(3)
                     .background(.white.opacity(0.06), in: Capsule())
 
+                    if expandedTab == .overview && widgetConfig != nil {
+                        Button {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                isEditingBento.toggle()
+                            }
+                        } label: {
+                            Image(systemName: isEditingBento ? "checkmark.circle.fill" : "slider.horizontal.3")
+                                .font(.system(size: 11.5, weight: .semibold))
+                                .foregroundStyle(isEditingBento ? Toast.Tint.success.color : .white.opacity(0.6))
+                        }
+                        .buttonStyle(.plain)
+                        .help(isEditingBento ? "Done customizing" : "Customize Bento layout")
+                    }
+
                     if expandedTab == .overview && hasFinished {
                         Button("Clear", action: onClearFinished)
                             .buttonStyle(.plain)
@@ -298,7 +317,17 @@ struct ExpandedView: View {
                     onAdjustLyricsOffset: onAdjustLyricsOffset
                 )
             } else if expandedTab == .tools {
-                ToolsTabView(latestClipboardText: latestClipboardText, onAction: onQuickTool)
+                ToolsTabView(
+                    latestClipboardText: latestClipboardText,
+                    releaseReadiness: releaseReadiness,
+                    changeImpact: changeImpact,
+                    dockerContainers: dockerContainers,
+                    ciRuns: ciRuns,
+                    databaseReport: databaseReport,
+                    dependencyFindings: dependencyFindings,
+                    envGuardReport: envGuardReport,
+                    onAction: onQuickTool
+                )
             } else if expandedTab == .drop {
                 AndroidDropTabView(
                     status: androidDrop,
@@ -365,6 +394,374 @@ struct ExpandedView: View {
 
     @ViewBuilder
     private var overviewBento: some View {
+        if let config = widgetConfig {
+            freeformOverviewBento(config: config)
+        } else {
+            classicOverviewBento
+        }
+    }
+
+    @ViewBuilder
+    private func freeformOverviewBento(config: NotchWidgetConfig) -> some View {
+        let rows = BentoLayoutEngine.packRows(config.overviewLayout)
+        VStack(alignment: .leading, spacing: 8) {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                        GeometryReader { geo in
+                            let spacing: CGFloat = 8
+                            let totalUnits = max(1, row.reduce(0) { $0 + $1.size.columnUnits })
+                            let rowScaleUnits = max(BentoLayoutEngine.maxColumns, totalUnits)
+                            let usableWidth = max(100, geo.size.width - spacing * CGFloat(max(0, row.count - 1)))
+                            HStack(alignment: .top, spacing: spacing) {
+                                ForEach(row) { item in
+                                    let tileWidth = usableWidth * CGFloat(item.size.columnUnits) / CGFloat(rowScaleUnits)
+                                    freeformBentoCard(item: item, config: config)
+                                        .frame(width: tileWidth, alignment: .topLeading)
+                                }
+                            }
+                        }
+                        .frame(minHeight: 82, idealHeight: 92, maxHeight: 112)
+                    }
+                }
+            }
+
+            if isEditingBento {
+                HStack(spacing: 8) {
+                    Menu {
+                        ForEach(BentoTileKind.allCases) { kind in
+                            Button {
+                                config.addBentoTile(kind)
+                            } label: {
+                                Label(kind.title, systemImage: kind.symbol)
+                            }
+                        }
+                    } label: {
+                        Label("Add Widget", systemImage: "plus.circle.fill")
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.9))
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4)
+                            .background(.white.opacity(0.12), in: Capsule())
+                    }
+                    .menuStyle(.borderlessButton)
+
+                    Spacer()
+
+                    Button("Reset Layout") {
+                        config.resetToDefaults()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.55))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func freeformBentoCard(item: BentoPlacement, config: NotchWidgetConfig) -> some View {
+        bentoBox {
+            VStack(alignment: .leading, spacing: 5) {
+                if isEditingBento {
+                    HStack(spacing: 4) {
+                        Image(systemName: item.kind.symbol)
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.6))
+                        Text(item.kind.title)
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .lineLimit(1)
+                        Spacer(minLength: 2)
+                        Button { config.moveBentoTile(id: item.id, offset: -1) } label: {
+                            Image(systemName: "chevron.left").font(.system(size: 9, weight: .bold))
+                        }.buttonStyle(.plain)
+                        Button { config.moveBentoTile(id: item.id, offset: 1) } label: {
+                            Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
+                        }.buttonStyle(.plain)
+
+                        Menu {
+                            ForEach(BentoTileSize.allCases) { sz in
+                                Button(sz.shortLabel) { config.resizeBentoTile(id: item.id, to: sz) }
+                            }
+                        } label: {
+                            Text(item.size.shortLabel)
+                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(.white.opacity(0.14), in: Capsule())
+                        }
+                        .menuStyle(.borderlessButton)
+
+                        Menu {
+                            ForEach(BentoTileKind.allCases) { kind in
+                                Button(kind.title) { config.replaceBentoTile(id: item.id, with: kind) }
+                            }
+                        } label: {
+                            Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 9))
+                        }
+                        .menuStyle(.borderlessButton)
+
+                        Button { config.removeBentoTile(id: item.id) } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(Toast.Tint.failure.color)
+                        }.buttonStyle(.plain)
+                    }
+                    .foregroundStyle(.white.opacity(0.75))
+                }
+
+                bentoTileBody(for: item.kind)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+
+    @ViewBuilder
+    private func bentoTileBody(for kind: BentoTileKind) -> some View {
+        switch kind {
+        case .systemAndGit:
+            VStack(alignment: .leading, spacing: 5) {
+                if let latest = systemPulse.last {
+                    SystemPulseRow(samples: systemPulse, latest: latest)
+                }
+                if let git = gitStatus {
+                    HStack(spacing: 5) {
+                        Image(systemName: "arrow.triangle.branch")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Toast.Tint.info.color)
+                        Text(git.repoName)
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .lineLimit(1)
+                        Text(git.branch)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.5))
+                            .lineLimit(1)
+                        if git.dirtyCount > 0 {
+                            Text("\(git.dirtyCount)M")
+                                .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(Toast.Tint.waiting.color)
+                        }
+                    }
+                }
+                if systemPulse.isEmpty && gitStatus == nil {
+                    Text("Workspace ready")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+            }
+        case .quickTools:
+            VStack(spacing: 5) {
+                HStack(spacing: 5) {
+                    quickTile("sparkles", "Ask AI") { onQuickTool(.openQuickAI) }
+                    quickTile("terminal", "Palette") { onQuickTool(.openCommandPalette) }
+                }
+                HStack(spacing: 5) {
+                    quickTile("doc.on.clipboard", "Clipboard") { onQuickTool(.openClipboard) }
+                    quickTile("text.viewfinder", "Screen OCR") { onQuickTool(.ocr) }
+                }
+            }
+        case .devServers:
+            if servers.isEmpty {
+                Text("No active dev servers")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.45))
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(servers.prefix(3))) { server in
+                        HStack(spacing: 6) {
+                            Circle().fill(Toast.Tint.success.color).frame(width: 6, height: 6)
+                            Text(":\(server.port)")
+                                .font(.system(size: 10.5, weight: .bold, design: .monospaced))
+                                .foregroundStyle(.white.opacity(0.95))
+                            Text(server.associatedProject ?? server.label)
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.7))
+                                .lineLimit(1)
+                            Spacer(minLength: 4)
+                            Text("PID \(server.pid)")
+                                .font(.system(size: 9.5, design: .monospaced))
+                                .foregroundStyle(.white.opacity(0.4))
+                            if !server.isProtected {
+                                Button { onServerAction(.kill(server)) } label: {
+                                    Image(systemName: "xmark.circle")
+                                        .font(.system(size: 10.5))
+                                        .foregroundStyle(Toast.Tint.failure.color.opacity(0.85))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+            }
+        case .nowPlaying:
+            if let track = nowPlaying, !track.title.isEmpty {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(track.title)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.92))
+                        .lineLimit(1)
+                    Text(track.artist)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .lineLimit(1)
+                    HStack(spacing: 12) {
+                        Button { onMediaCommand(.previous) } label: { Image(systemName: "backward.fill") }.buttonStyle(.plain)
+                        Button { onMediaCommand(.togglePlayPause) } label: { Image(systemName: track.isPlaying ? "pause.fill" : "play.fill") }.buttonStyle(.plain)
+                        Button { onMediaCommand(.next) } label: { Image(systemName: "forward.fill") }.buttonStyle(.plain)
+                    }
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.85))
+                }
+            } else {
+                Text("Nothing playing")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+        case .releaseReadiness:
+            if let r = releaseReadiness {
+                let tint: Color = switch r.status {
+                case .ready: Toast.Tint.success.color
+                case .needsAttention: Toast.Tint.waiting.color
+                case .blocked: Toast.Tint.failure.color
+                case .unknown: .white.opacity(0.5)
+                }
+                let passed = r.checks.count(where: { $0.state == .passed })
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 5) {
+                        Image(systemName: r.status == .ready ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                            .foregroundStyle(tint)
+                        Text("\(passed)/\(r.checks.count) Gates")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.9))
+                    }
+                    Text(r.status.rawValue)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(tint)
+                }
+            } else {
+                Text("No release gates")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+        case .changeImpact:
+            if let impact = changeImpact, !impact.changedFiles.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("RISK \(impact.riskLevel.rawValue.uppercased())")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(impact.riskLevel >= .high ? Toast.Tint.failure.color : Toast.Tint.waiting.color)
+                    Text("\(impact.changedFiles.count) files · \(impact.suggestedTests.count) tests")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.white.opacity(0.75))
+                        .lineLimit(1)
+                }
+            } else {
+                Text("Working tree clean")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+        case .dockerHealth:
+            if dockerContainers.isEmpty {
+                Text("No Docker containers")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.45))
+            } else {
+                let summary = ServiceHealthInspector.evaluate(containers: dockerContainers, engineAvailability: .available)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("\(summary.services.count) containers")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                    Text(summary.unhealthyCount == 0 ? "All healthy" : "\(summary.unhealthyCount) unhealthy")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(summary.unhealthyCount == 0 ? Toast.Tint.success.color : Toast.Tint.failure.color)
+                }
+            }
+        case .ciWatchtower:
+            if let latest = ciRuns.first {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(latest.workflow)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(1)
+                    Text("\(latest.branch) · \(latest.status.rawValue)")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(latest.status == .success ? Toast.Tint.success.color : Toast.Tint.waiting.color)
+                        .lineLimit(1)
+                }
+            } else {
+                Text("CI not synced")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+        case .databaseMigrations:
+            if let db = databaseReport {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(db.engine)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                    if case .pending(let count, _) = db.migrationStatus {
+                        Text("\(count) pending")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(Toast.Tint.waiting.color)
+                    } else {
+                        Text("Up to date")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(Toast.Tint.success.color)
+                    }
+                }
+            } else {
+                Text("No DB migrations")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+        case .securityAndEnv:
+            VStack(alignment: .leading, spacing: 3) {
+                if let env = envGuardReport {
+                    Text(env.isHealthy ? ".env OK" : "ENV missing \(env.missingKeys.count)")
+                        .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(env.isHealthy ? Toast.Tint.success.color : Toast.Tint.waiting.color)
+                } else {
+                    Text("No .env.example")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.white.opacity(0.45))
+                }
+                if !dependencyFindings.isEmpty {
+                    Text("\(dependencyFindings.count) advisories")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(Toast.Tint.failure.color)
+                }
+            }
+        case .agentConflicts:
+            if !agentConflicts.isEmpty {
+                Text("\(agentConflicts.count) conflict(s)")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Toast.Tint.waiting.color)
+            } else if !sessions.isEmpty {
+                Text("\(sessions.count) agent session(s)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.85))
+            } else {
+                Text("No active agents")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+        case .quickNotes:
+            if notesPayload.tasks.isEmpty && notesPayload.note.isEmpty {
+                Text("No notes or tasks")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.45))
+            } else {
+                let openCount = notesPayload.tasks.count(where: { !$0.isDone })
+                Text("\(openCount) open task(s)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var classicOverviewBento: some View {
         VStack(spacing: 8) {
             HStack(alignment: .top, spacing: 10) {
                 // Left Bento Card: Now Playing or Live Workspace Status
@@ -783,10 +1180,59 @@ private struct FocusTabView: View {
 }
 
 private struct ToolsTabView: View {
+    enum SubTab: String, CaseIterable {
+        case quickTools = "Quick Tools"
+        case cockpit = "Cockpit 4–10"
+    }
+
     let latestClipboardText: String?
+    var releaseReadiness: ReleaseReadinessReport? = nil
+    var changeImpact: ChangeImpactReport? = nil
+    var dockerContainers: [DockerContainer] = []
+    var ciRuns: [CIRunRecord] = []
+    var databaseReport: DatabaseHealthReport? = nil
+    var dependencyFindings: [DependencyFinding] = []
+    var envGuardReport: EnvGuardReport? = nil
     let onAction: (NotchStore.QuickToolAction) -> Void
 
+    @State private var subTab: SubTab = .cockpit
+
     var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                ForEach(SubTab.allCases, id: \.self) { tab in
+                    Button {
+                        subTab = tab
+                    } label: {
+                        Text(tab.rawValue)
+                            .font(.system(size: 10, weight: subTab == tab ? .semibold : .medium))
+                            .foregroundStyle(.white.opacity(subTab == tab ? 0.95 : 0.55))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(subTab == tab ? .white.opacity(0.14) : .white.opacity(0.05), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer()
+            }
+
+            if subTab == .cockpit {
+                CockpitPhasesInspectorView(
+                    releaseReadiness: releaseReadiness,
+                    changeImpact: changeImpact,
+                    dockerContainers: dockerContainers,
+                    ciRuns: ciRuns,
+                    databaseReport: databaseReport,
+                    dependencyFindings: dependencyFindings,
+                    envGuardReport: envGuardReport
+                )
+            } else {
+                quickToolsBody
+            }
+        }
+    }
+
+    private var quickToolsBody: some View {
         HStack(alignment: .top, spacing: 10) {
             // Left Bento Box: Capture & Inspect (2x2)
             VStack(alignment: .leading, spacing: 6) {
