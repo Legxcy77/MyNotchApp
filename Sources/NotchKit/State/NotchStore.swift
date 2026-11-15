@@ -20,6 +20,7 @@ public final class NotchStore {
     @ObservationIgnored public var hoverExitDelay: Duration = .milliseconds(180)
     @ObservationIgnored public var onAction: (@MainActor (Toast.Action) -> Void)?
     @ObservationIgnored public var onServerAction: (@MainActor (DevServerAction) -> Void)?
+    @ObservationIgnored public var onPasteClipboard: (@MainActor (ClipboardItem) -> Void)?
     @ObservationIgnored public var onModeChanged: (@MainActor (NotchMode) -> Void)?
     @ObservationIgnored private var expiryTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var hoverExitTask: Task<Void, Never>?
@@ -42,6 +43,10 @@ public final class NotchStore {
 
     public func perform(_ action: DevServerAction) {
         onServerAction?(action)
+    }
+
+    public func paste(_ item: ClipboardItem) {
+        onPasteClipboard?(item)
     }
 
     public func activate(_ toast: Toast) {

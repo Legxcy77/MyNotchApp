@@ -23,6 +23,8 @@ final class AppCoordinator {
     private var eventBus: EventBusServer?
     private var devServers: DevServerMonitor?
     private var screenshots: ScreenshotWatcher?
+    private var clipboard: ClipboardMonitor?
+    private var hotKey: HotKeyMonitor?
     private var isMenuOpen = false
 
     init() {
@@ -47,6 +49,21 @@ final class AppCoordinator {
         store.onModeChanged = { [weak self] mode in
             guard let self else { return }
             self.devServers?.setActive(mode == .expanded || self.isMenuOpen)
+            self.window.setClipboardFocus(mode == .clipboard)
+        }
+        store.onPasteClipboard = { [weak self] item in
+            guard let self else { return }
+            self.store.send(.setClipboardOpen(false))
+            let pasted = self.clipboard?.writeAndPaste(item, targetApp: self.window.previousApp) ?? false
+            if !pasted {
+                self.store.post(Toast(
+                    title: "Copied to clipboard",
+                    subtitle: "Grant Accessibility in System Settings for auto-paste",
+                    symbol: "doc.on.clipboard",
+                    tint: .info,
+                    duration: .seconds(4)
+                ))
+            }
         }
         statusBar.onMenuVisibilityChanged = { [weak self] open in
             guard let self else { return }
@@ -71,6 +88,21 @@ final class AppCoordinator {
 
         startEventBus()
         startScreenshotWatcher()
+        startClipboard()
+    }
+
+    private func startClipboard() {
+        let monitor = ClipboardMonitor { [weak store] content, date in
+            store?.send(.clipboardRecorded(content, at: date))
+        }
+        monitor.start()
+        clipboard = monitor
+
+        let hk = HotKeyMonitor { [weak store] in
+            store?.send(.toggleClipboard)
+        }
+        hk.registerOptionCommandV()
+        hotKey = hk
     }
 
     private func startScreenshotWatcher() {

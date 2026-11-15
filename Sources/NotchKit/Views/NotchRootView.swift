@@ -97,6 +97,14 @@ public struct NotchRootView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(.top, geometry.cameraClearance)
                     .transition(.islandContent)
+            case .clipboard:
+                ClipboardView(
+                    history: store.state.clipboard,
+                    clearance: geometry.cameraClearance,
+                    onPaste: { store.paste($0) },
+                    onClose: { store.send(.setClipboardOpen(false)) }
+                )
+                .transition(.islandContent)
             }
         }
     }

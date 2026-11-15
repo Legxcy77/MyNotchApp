@@ -35,6 +35,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(ActionMenuItem(title: "Show Island", on: window.isVisible) { [window] in
             window.setVisible(!window.isVisible)
         })
+        menu.addItem(ActionMenuItem(title: "Clipboard History (⌥⌘V)") { [store] in
+            store.send(.toggleClipboard)
+        })
 
         let displays = NSMenu()
         displays.addItem(ActionMenuItem(title: "Automatic", on: window.pinnedDisplayID == nil) { [window] in

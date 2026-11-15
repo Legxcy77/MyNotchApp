@@ -35,6 +35,7 @@ final class NotchWindowController {
     }
 
     private(set) var isVisible = true
+    private(set) var previousApp: NSRunningApplication?
 
     init(store: NotchStore) {
         self.store = store
@@ -59,6 +60,21 @@ final class NotchWindowController {
     func setVisible(_ visible: Bool) {
         isVisible = visible
         if visible { panel.orderFrontRegardless() } else { panel.orderOut(nil) }
+    }
+
+    func setClipboardFocus(_ active: Bool) {
+        if active {
+            if let front = NSWorkspace.shared.frontmostApplication,
+               front.bundleIdentifier != Bundle.main.bundleIdentifier {
+                previousApp = front
+            }
+            panel.allowsKeyWindow = true
+            panel.ignoresMouseEvents = false
+            panel.makeKeyAndOrderFront(nil)
+        } else {
+            panel.allowsKeyWindow = false
+            panel.resignKey()
+        }
     }
 
     var currentScreen: NSScreen? {
@@ -105,6 +121,10 @@ final class NotchWindowController {
 
     private func updateHover() {
         guard isVisible else { return }
+        if store.mode == .clipboard {
+            if panel.ignoresMouseEvents { panel.ignoresMouseEvents = false }
+            return
+        }
         let rect = IslandLayout.hitRect(
             for: store.mode,
             geometry: store.geometry,

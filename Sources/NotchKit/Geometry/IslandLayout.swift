@@ -18,6 +18,9 @@ public enum IslandLayout {
         case .expanded:
             return CGSize(width: max(expandedSize.width, g.baseSize.width + 200),
                           height: g.cameraClearance + expandedSize.height)
+        case .clipboard:
+            return CGSize(width: max(expandedSize.width, g.baseSize.width + 200),
+                          height: g.cameraClearance + 250)
         case .toast:
             return CGSize(width: max(360, g.baseSize.width + 220),
                           height: g.cameraClearance + toastBodyHeight)
@@ -37,7 +40,7 @@ public enum IslandLayout {
         switch mode {
         case .collapsed: bottom = g.kind == .hardware ? 10 : g.baseSize.height / 2
         case .toast: bottom = 22
-        case .expanded, .fileDrop: bottom = 28
+        case .expanded, .fileDrop, .clipboard: bottom = 28
         }
         // Hardware: flush with the bezel, so square top. Floating: a free-standing pill.
         let top: CGFloat = g.kind == .hardware ? 0 : (mode == .collapsed ? bottom : 18)

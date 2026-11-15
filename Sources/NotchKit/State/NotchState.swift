@@ -4,18 +4,21 @@ public enum NotchMode: Equatable, Sendable {
     case collapsed
     case expanded
     case fileDrop
+    case clipboard
     case toast(Toast)
 }
 
 public struct NotchState: Equatable, Sendable {
     public var isHovering = false
     public var isDragging = false
+    public var isClipboardOpen = false
     public var activeToast: Toast?
     /// Sorted by priority (desc), FIFO within a priority.
     public var pendingToasts: [Toast] = []
     public var agentSessions: [AgentSession] = []
     public var devServers: [DevServer] = []
     public var stagedFiles: [URL] = []
+    public var clipboard = ClipboardHistory()
 
     public init() {}
 
@@ -34,6 +37,7 @@ public struct NotchState: Equatable, Sendable {
     /// Derived, never stored, so impossible states can't exist.
     public var mode: NotchMode {
         if isDragging { return .fileDrop }
+        if isClipboardOpen { return .clipboard }
         if let activeToast { return .toast(activeToast) }
         if isHovering { return .expanded }
         return .collapsed
@@ -52,6 +56,9 @@ public enum NotchEvent: Sendable, Equatable {
     case stageFiles([URL])
     case removeStagedFile(URL)
     case clearStagedFiles
+    case clipboardRecorded(ClipboardItem.Content, at: Date)
+    case toggleClipboard
+    case setClipboardOpen(Bool)
 }
 
 public enum NotchEffect: Sendable, Equatable {
@@ -103,6 +110,15 @@ public enum NotchReducer {
             return []
         case .clearStagedFiles:
             s.stagedFiles.removeAll()
+            return []
+        case .clipboardRecorded(let content, let date):
+            s.clipboard.record(content, at: date)
+            return []
+        case .toggleClipboard:
+            s.isClipboardOpen.toggle()
+            return []
+        case .setClipboardOpen(let open):
+            s.isClipboardOpen = open
             return []
         }
     }

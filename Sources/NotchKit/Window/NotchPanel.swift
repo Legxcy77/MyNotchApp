@@ -2,6 +2,8 @@ import AppKit
 
 /// Borderless, transparent, non-activating panel that floats above the notch on every Space.
 final class NotchPanel: NSPanel {
+    var allowsKeyWindow = false
+
     init(size: CGSize) {
         super.init(contentRect: NSRect(origin: .zero, size: size),
                    styleMask: [.borderless, .nonactivatingPanel],
@@ -21,7 +23,7 @@ final class NotchPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
     }
 
-    override var canBecomeKey: Bool { false }
+    override var canBecomeKey: Bool { allowsKeyWindow }
     override var canBecomeMain: Bool { false }
 }
 
