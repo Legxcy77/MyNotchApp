@@ -1,0 +1,94 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+PORT="${MYNOTCH_PORT:-7777}"
+TOKEN_FILE="${HOME}/.mynotch/token"
+BASE_URL="http://127.0.0.1:${PORT}"
+
+if [[ ! -r "$TOKEN_FILE" ]]; then
+  echo "notch: token not found at $TOKEN_FILE (start MyNotchApp once first)" >&2
+  exit 1
+fi
+TOKEN="$(<"$TOKEN_FILE")"
+TOKEN="${TOKEN//$'\n'/}"
+
+json_escape() {
+  python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1"
+}
+
+post_json() {
+  local endpoint="$1"
+  local payload="$2"
+  curl -fsS -X POST "${BASE_URL}${endpoint}" \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "$payload"
+  echo
+}
+
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+  health)
+    curl -fsS "${BASE_URL}/health" -H "Authorization: Bearer ${TOKEN}"
+    echo
+    ;;
+  toast)
+    title="${1:?usage: notch toast <title> [--subtitle S] [--tint ok|fail|warn|info|neutral] [--symbol S] [--priority low|normal|high|critical] [--ttl SEC] [--key K]}"
+    shift
+    subtitle="" tint="" symbol="" priority="" ttl="" key=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --subtitle) subtitle="$2"; shift 2 ;;
+        --tint)     tint="$2"; shift 2 ;;
+        --symbol)   symbol="$2"; shift 2 ;;
+        --priority) priority="$2"; shift 2 ;;
+        --ttl)      ttl="$2"; shift 2 ;;
+        --key)      key="$2"; shift 2 ;;
+        *) echo "unknown flag: $1" >&2; exit 2 ;;
+      esac
+    done
+    payload=$(python3 -c '
+import json, sys
+d = {"title": sys.argv[1]}
+for k, v in zip(["subtitle","tint","symbol","priority","key"], sys.argv[2:7]):
+    if v: d[k] = v
+if sys.argv[7]: d["ttl"] = float(sys.argv[7])
+print(json.dumps(d))
+' "$title" "$subtitle" "$tint" "$symbol" "$priority" "$key" "$ttl")
+    post_json "/toast" "$payload"
+    ;;
+  progress)
+    key="${1:?usage: notch progress <key> <title> <0..1> [subtitle]}"
+    title="${2:?}"
+    value="${3:?}"
+    subtitle="${4:-}"
+    payload=$(python3 -c '
+import json, sys
+d = {"key": sys.argv[1], "title": sys.argv[2], "value": float(sys.argv[3])}
+if sys.argv[4]: d["subtitle"] = sys.argv[4]
+print(json.dumps(d))
+' "$key" "$title" "$value" "$subtitle")
+    post_json "/progress" "$payload"
+    ;;
+  activity)
+    source="${1:?usage: notch activity <source> <session> <working|waiting|done|failed> [title] [cwd]}"
+    session="${2:?}"
+    state="${3:?}"
+    title="${4:-}"
+    cwd="${5:-}"
+    payload=$(python3 -c '
+import json, sys
+d = {"source": sys.argv[1], "session": sys.argv[2], "state": sys.argv[3]}
+if sys.argv[4]: d["title"] = sys.argv[4]
+if sys.argv[5]: d["cwd"] = sys.argv[5]
+print(json.dumps(d))
+' "$source" "$session" "$state" "$title" "$cwd")
+    post_json "/activity" "$payload"
+    ;;
+  *)
+    echo "usage: notch <health|toast|progress|activity> ..." >&2
+    exit 2
+    ;;
+esac

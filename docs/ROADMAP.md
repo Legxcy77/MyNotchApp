@@ -11,7 +11,7 @@ Legend: `[x]` done · `[ ]` todo · (U) unit-tested · (V) verified by eye on a 
 - [x] **F5** `scripts/bundle.sh` → `build/MyNotchApp.app` (Info.plist: LSUIElement, NSAppleEventsUsageDescription, NSCameraUsageDescription, NSCalendarsFullAccessUsageDescription), ad-hoc codesign, `SMAppService.mainApp` launch-at-login toggle in the menu. Gate: (V) open from Finder, no Dock icon, survives reboot.
 
 ## Core: Event Bus (most features build on this)
-- [ ] **E1** `NWListener` HTTP/1.1 on 127.0.0.1:7777 (port configurable). Token in `~/.mynotch/token` (0600) is required as `Authorization: Bearer`. Endpoints:
+- [x] **E1** `NWListener` HTTP/1.1 on 127.0.0.1:7777 (port configurable). Token in `~/.mynotch/token` (0600) is required as `Authorization: Bearer`. Endpoints:
   - `POST /toast {title, subtitle?, symbol?, tint?, priority?, ttl?, key?}`
   - `POST /progress {key, title, value 0..1, subtitle?}` (key-updated toast, auto-dismissed at 1.0)
   - `POST /activity {source, session, state: working|waiting|done|failed, title?, cwd?}` (feeds Agent Inbox)
@@ -56,5 +56,6 @@ Legend: `[x]` done · `[ ]` todo · (U) unit-tested · (V) verified by eye on a 
 - [ ] **B3 Docker Glance**: containers via `/var/run/docker.sock` with status, restart, and tail logs (reuses D4). Gate: (V).
 
 ## Changelog
-- 2026-11-15: F1–F4 implemented (NotchKit split, geometry, hit-testing + menu bar, reducer/store with tests). 17/17 tests green, app launches. **(V) checks for F2/F3 still pending on the owner's machine.**
+- 2026-11-15: F1–F4 implemented (NotchKit split, geometry, hit-testing + menu bar, reducer/store with tests). 17/17 tests green, app launches. F2/F3 verified by eye by owner.
 - 2026-11-15: F5 implemented (`scripts/bundle.sh` producing ad-hoc signed `build/MyNotchApp.app` with `LSUIElement` + usage descriptions, `LaunchAtLoginService` via `SMAppService.mainApp` wired into menu bar). 17/17 tests green, bundle smoke test alive. **(V) check for Finder launch / reboot persistence pending on the owner's machine.**
+- 2026-11-15: E1 implemented (`HTTPRequestParser`, `EventBusRouter`, `TokenStore`, `EventBusServer` on `127.0.0.1:7777`, `scripts/notch` CLI). 27/27 tests green; live `/health`, `/toast`, and 401 auth verified.
