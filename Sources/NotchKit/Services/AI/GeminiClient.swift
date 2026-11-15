@@ -58,6 +58,7 @@ public struct GeminiClient: Sendable {
             struct Content: Decodable {
                 struct Part: Decodable {
                     let text: String?
+                    let thought: Bool?
                 }
                 let parts: [Part]?
             }
@@ -75,7 +76,10 @@ public struct GeminiClient: Sendable {
         guard !jsonStr.isEmpty, jsonStr != "[DONE]" else { return nil }
         guard let data = jsonStr.data(using: .utf8),
               let chunk = try? JSONDecoder().decode(SSEChunk.self, from: data) else { return nil }
-        let text = chunk.candidates?.first?.content?.parts?.compactMap(\.text).joined() ?? ""
+        let text = chunk.candidates?.first?.content?.parts?
+            .filter { $0.thought != true }
+            .compactMap(\.text)
+            .joined() ?? ""
         return text.isEmpty ? nil : text
     }
 
@@ -95,7 +99,16 @@ public struct GeminiClient: Sendable {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let body: [String: Any] = [
-            "contents": [["parts": [["text": prompt]]]]
+            "systemInstruction": [
+                "parts": [["text": "Reply concisely and directly for a compact macOS notch quick-assistant. Match the user's language."]]
+            ],
+            "contents": [["parts": [["text": prompt]]]],
+            "generationConfig": [
+                "maxOutputTokens": 1024,
+                "thinkingConfig": [
+                    "thinkingLevel": "low"
+                ]
+            ]
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
