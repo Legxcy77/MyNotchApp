@@ -41,14 +41,13 @@ public final class LockScreenWindowController {
         var created: [NSWindow] = []
 
         for screen in screens {
-            let win = NSWindow(
+            let win = LockScreenWindow(
                 contentRect: screen.frame,
                 styleMask: [.borderless],
                 backing: .buffered,
                 defer: false,
                 screen: screen
             )
-            win.setFrame(screen.frame, display: true)
             win.level = .screenSaver
             win.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
             win.isReleasedWhenClosed = false
@@ -66,13 +65,18 @@ public final class LockScreenWindowController {
                         self?.beginFaceVerification()
                     }
                 )
-                win.contentViewController = NSHostingController(rootView: rootView)
+                .frame(width: screen.frame.width, height: screen.frame.height)
+                let hosting = NSHostingController(rootView: rootView)
+                hosting.sizingOptions = []
+                win.contentViewController = hosting
+                win.setFrame(screen.frame, display: true)
                 win.makeKeyAndOrderFront(nil)
             } else {
                 let cover = NSView(frame: screen.frame)
                 cover.wantsLayer = true
                 cover.layer?.backgroundColor = NSColor.black.cgColor
                 win.contentView = cover
+                win.setFrame(screen.frame, display: true)
                 win.orderFrontRegardless()
             }
             created.append(win)
@@ -133,5 +137,10 @@ public final class LockScreenWindowController {
             }
         }
     }
+}
+
+private final class LockScreenWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
 }
 
