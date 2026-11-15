@@ -7,13 +7,21 @@ struct ToastView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            ZStack {
-                Circle().fill(toast.tint.color.opacity(0.18))
-                Image(systemName: toast.symbol)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(toast.tint.color)
+            if let path = toast.thumbnailPath, let img = NSImage(contentsOfFile: path) {
+                Image(nsImage: img)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 30, height: 30)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            } else {
+                ZStack {
+                    Circle().fill(toast.tint.color.opacity(0.18))
+                    Image(systemName: toast.symbol)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(toast.tint.color)
+                }
+                .frame(width: 30, height: 30)
             }
-            .frame(width: 30, height: 30)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(toast.title)

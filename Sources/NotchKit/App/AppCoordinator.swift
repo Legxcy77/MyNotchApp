@@ -22,6 +22,7 @@ final class AppCoordinator {
     let statusBar: StatusBarController
     private var eventBus: EventBusServer?
     private var devServers: DevServerMonitor?
+    private var screenshots: ScreenshotWatcher?
     private var isMenuOpen = false
 
     init() {
@@ -69,6 +70,24 @@ final class AppCoordinator {
         }
 
         startEventBus()
+        startScreenshotWatcher()
+    }
+
+    private func startScreenshotWatcher() {
+        let watcher = ScreenshotWatcher { [weak store] url in
+            guard let store else { return }
+            store.send(.stageFiles([url]))
+            store.post(Toast(
+                title: "Screenshot staged",
+                subtitle: url.lastPathComponent,
+                symbol: "camera.viewfinder",
+                tint: .info,
+                duration: .seconds(3),
+                thumbnailPath: url.path
+            ))
+        }
+        watcher.start()
+        screenshots = watcher
     }
 
     private func startEventBus() {

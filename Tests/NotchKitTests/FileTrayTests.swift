@@ -26,3 +26,4 @@ import Testing
         #expect(s.stagedFiles.isEmpty)
     }
 }
+

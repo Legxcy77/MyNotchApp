@@ -22,10 +22,11 @@ public struct Toast: Equatable, Sendable, Identifiable {
     public var priority: Priority
     public var duration: Duration
     public var action: Action?
+    public var thumbnailPath: String?
 
     public init(id: UUID = UUID(), key: String? = nil, title: String, subtitle: String? = nil,
                 symbol: String = "bell.fill", tint: Tint = .neutral, priority: Priority = .normal,
-                duration: Duration = .seconds(3), action: Action? = nil) {
+                duration: Duration = .seconds(3), action: Action? = nil, thumbnailPath: String? = nil) {
         self.id = id
         self.key = key
         self.title = title
@@ -35,6 +36,7 @@ public struct Toast: Equatable, Sendable, Identifiable {
         self.priority = priority
         self.duration = duration
         self.action = action
+        self.thumbnailPath = thumbnailPath
     }
 }
 
