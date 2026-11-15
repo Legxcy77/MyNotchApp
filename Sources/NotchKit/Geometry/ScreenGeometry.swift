@@ -74,3 +74,4 @@ public enum ScreenGeometry {
         screens.firstIndex(where: \.hasNotch) ?? mainIndex ?? (screens.isEmpty ? nil : 0)
     }
 }
+

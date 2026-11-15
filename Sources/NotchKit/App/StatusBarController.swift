@@ -4,12 +4,14 @@ import AppKit
 final class StatusBarController: NSObject, NSMenuDelegate {
     private let store: NotchStore
     private let window: NotchWindowController
+    private let launchAtLogin: LaunchAtLoginService
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let menu = NSMenu()
 
-    init(store: NotchStore, window: NotchWindowController) {
+    init(store: NotchStore, window: NotchWindowController, launchAtLogin: LaunchAtLoginService) {
         self.store = store
         self.window = window
+        self.launchAtLogin = launchAtLogin
         super.init()
         let image = NSImage(systemSymbolName: "capsule.portrait.fill", accessibilityDescription: "MyNotchApp")
         image?.isTemplate = true
@@ -54,6 +56,26 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(debugItem)
 
         menu.addItem(.separator())
+        let launchItem = ActionMenuItem(
+            title: launchAtLogin.isBundledApp ? "Launch at Login" : "Launch at Login (requires .app)",
+            on: launchAtLogin.isEnabled
+        ) { [launchAtLogin, store] in
+            do {
+                try launchAtLogin.toggle()
+            } catch {
+                store.post(Toast(
+                    title: "Launch at Login failed",
+                    subtitle: error.localizedDescription,
+                    symbol: "exclamationmark.triangle.fill",
+                    tint: .failure,
+                    priority: .high
+                ))
+            }
+        }
+        launchItem.isEnabled = launchAtLogin.isBundledApp
+        menu.addItem(launchItem)
+
+        menu.addItem(.separator())
         menu.addItem(ActionMenuItem(title: "Quit MyNotchApp", key: "q") { NSApp.terminate(nil) })
     }
 
@@ -81,3 +103,4 @@ final class ActionMenuItem: NSMenuItem {
 
     @objc private func fire() { handler() }
 }
+

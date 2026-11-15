@@ -18,10 +18,12 @@ public final class NotchAppDelegate: NSObject, NSApplicationDelegate {
 final class AppCoordinator {
     let store = NotchStore()
     let window: NotchWindowController
+    let launchAtLogin = LaunchAtLoginService()
     let statusBar: StatusBarController
 
     init() {
         window = NotchWindowController(store: store)
-        statusBar = StatusBarController(store: store, window: window)
+        statusBar = StatusBarController(store: store, window: window, launchAtLogin: launchAtLogin)
     }
 }
+

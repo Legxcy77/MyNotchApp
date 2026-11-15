@@ -64,3 +64,4 @@ struct ExpandedView: View {
         .padding(.bottom, 16)
     }
 }
+

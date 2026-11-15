@@ -31,3 +31,4 @@ public struct Toast: Equatable, Sendable, Identifiable {
         self.duration = duration
     }
 }
+

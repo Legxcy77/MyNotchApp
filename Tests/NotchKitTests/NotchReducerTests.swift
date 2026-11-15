@@ -119,3 +119,4 @@ private func toast(_ title: String, key: String? = nil, priority: Toast.Priority
         #expect(!store.state.isHovering)
     }
 }
+

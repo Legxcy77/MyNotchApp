@@ -7,3 +7,4 @@ let delegate = NotchAppDelegate()
 app.delegate = delegate
 app.setActivationPolicy(.accessory) // no Dock icon; LSUIElement takes over once bundled (F5)
 app.run()
+
