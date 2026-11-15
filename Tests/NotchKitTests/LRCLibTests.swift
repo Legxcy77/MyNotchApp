@@ -121,5 +121,12 @@ struct LRCLibTests {
         let karaoke = LRCLibResponse(id: 10, duration: 261, syncedLyrics: "[00:01.00]Phom yok hai thoe")
         let thai = LRCLibResponse(id: 11, duration: 261, syncedLyrics: "[00:01.00]ผมยกให้เธอ")
         #expect(LRCLibQueryCleaner.pickBestMatch(from: [karaoke, thai], targetDuration: 261)?.id == 11)
+
+        let krRom = LRCLibResponse(id: 12, duration: 190, syncedLyrics: "[00:01.00]Annyeonghaseyo")
+        let krNative = LRCLibResponse(id: 13, duration: 190, syncedLyrics: "[00:01.00]안녕하세요")
+        #expect(LRCLibQueryCleaner.pickBestMatch(from: [krRom, krNative], targetDuration: 190)?.id == 13)
+
+        let jpPlain = LRCLibResponse(id: 14, duration: 210, plainLyrics: "夜に駆ける")
+        #expect(LRCLibQueryCleaner.pickBestMatch(from: [jpPlain], targetDuration: 210)?.id == 14)
     }
 }

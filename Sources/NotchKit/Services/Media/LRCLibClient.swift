@@ -42,8 +42,11 @@ public enum LRCLibQueryCleaner {
     private static let noisePatterns: [String] = [
         #"\s*\|\s*(TikTok|YouTube)\s*$"#,
         #"\s*-\s*YouTube\s*$"#,
-        #"\s*[\(\[]\s*(Official\s*(Music\s*)?(Video|Audio|Lyric\s*Video)|Performance\s*Film|Visualizer|Lyrics?|M/?V|HD|4K)\s*[\)\]]"#,
+        #"\s*[\(\[]\s*(Official\s*(Music\s*)?(Video|Audio|Lyric\s*Video)|Color\s*Coded\s*Lyrics|Performance\s*Film|Visualizer|Lyric\s*Video|Lyrics?|Audio|M/?V|HD|4K|가사|日本語字幕|歌詞)\s*[\)\]]"#,
+        #"\s*[\(\[]\s*(feat\.?|ft\.?)\s+[^\)\]]+[\)\]]"#,
     ]
+
+    private static let nativeScriptPattern = #"[\u0E00-\u0E7F\u3040-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF\u0400-\u04FF\u0600-\u06FF]"#
 
     public static func clean(artist: String, track: String) -> (artist: String, track: String, searchQuery: String) {
         var cleanedTrack = track.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -58,10 +61,12 @@ public enum LRCLibQueryCleaner {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         var cleanedArtist = artist.trimmingCharacters(in: .whitespacesAndNewlines)
-        // YouTube Music Thailand joins multiple artists with "และ" (no spaces), e.g. "P6ICKและSURIYA MQT"
+        // Localized artist joiners (Thai, Japanese, Chinese)
         cleanedArtist = cleanedArtist
             .replacingOccurrences(of: "และ", with: " & ")
             .replacingOccurrences(of: "กับ", with: " & ")
+            .replacingOccurrences(of: "・", with: " & ")
+            .replacingOccurrences(of: "、", with: " & ")
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -92,22 +97,32 @@ public enum LRCLibQueryCleaner {
         from candidates: [LRCLibResponse],
         targetDuration: TimeInterval?
     ) -> LRCLibResponse? {
-        let synced = candidates.filter { ($0.syncedLyrics ?? "").isEmpty == false }
-        guard !synced.isEmpty else { return nil }
-        let pool: [LRCLibResponse]
+        let withLyrics = candidates.filter {
+            ($0.syncedLyrics ?? "").isEmpty == false || ($0.plainLyrics ?? "").isEmpty == false
+        }
+        guard !withLyrics.isEmpty else { return nil }
+
+        let durationMatched: [LRCLibResponse]
         if let targetDuration, targetDuration > 0 {
-            let matching = synced.filter { item in
+            let matching = withLyrics.filter { item in
                 guard let d = item.duration else { return false }
                 return abs(d - targetDuration) <= 4.0
             }
             guard !matching.isEmpty else { return nil }
-            pool = matching
+            durationMatched = matching
         } else {
-            pool = synced
+            durationMatched = withLyrics
         }
-        // Prefer Thai script over romanized karaoke when both exist
-        if let thaiMatch = pool.first(where: { ($0.syncedLyrics ?? "").range(of: #"[\u0E00-\u0E7F]"#, options: .regularExpression) != nil }) {
-            return thaiMatch
+
+        let synced = durationMatched.filter { ($0.syncedLyrics ?? "").isEmpty == false }
+        let pool = synced.isEmpty ? durationMatched : synced
+
+        // Prefer native non-Latin scripts (Thai, Korean, Japanese, Chinese, Cyrillic, Arabic) over romanized karaoke
+        if let nativeMatch = pool.first(where: {
+            let text = ($0.syncedLyrics ?? "") + ($0.plainLyrics ?? "")
+            return text.range(of: nativeScriptPattern, options: .regularExpression) != nil
+        }) {
+            return nativeMatch
         }
         return pool.first
     }
