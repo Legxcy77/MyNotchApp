@@ -102,7 +102,17 @@ void mr_stream(void) {
     }
 }
 
-void mr_cmd_toggle(void) { @autoreleasepool { loadMR(); if (sendCommandFn) sendCommandFn(2, nil); } }
-void mr_cmd_next(void)   { @autoreleasepool { loadMR(); if (sendCommandFn) sendCommandFn(4, nil); } }
-void mr_cmd_prev(void)   { @autoreleasepool { loadMR(); if (sendCommandFn) sendCommandFn(5, nil); } }
+static void sendCmd(uint32_t cmd) {
+    @autoreleasepool {
+        loadMR();
+        if (sendCommandFn) {
+            sendCommandFn(cmd, nil);
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.25, false);
+        }
+    }
+}
+
+void mr_cmd_toggle(void) { sendCmd(2); }
+void mr_cmd_next(void)   { sendCmd(4); }
+void mr_cmd_prev(void)   { sendCmd(5); }
 
