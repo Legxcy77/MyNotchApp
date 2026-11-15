@@ -46,3 +46,4 @@ public enum QuickNotesStore {
         try? data.write(to: fileURL, options: .atomic)
     }
 }
+

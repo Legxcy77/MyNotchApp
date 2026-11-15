@@ -172,7 +172,7 @@ struct ExpandedView: View {
                     }
                     Spacer()
                     HStack(spacing: 3) {
-                        ExpandedTabPill(symbol: "house.fill", title: "Home", isSelected: expandedTab == .overview) {
+                        ExpandedTabPill(symbol: "house.fill", title: nil, isSelected: expandedTab == .overview) {
                             onSelectTab(.overview)
                         }
                         ExpandedTabPill(symbol: "music.note", title: nil, isSelected: expandedTab == .media) {
@@ -690,6 +690,8 @@ private struct ExpandedTabPill: View {
                 if let title {
                     Text(title)
                         .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1)
+                        .fixedSize()
                 }
             }
             .foregroundStyle(isSelected ? .white : .white.opacity(0.5))

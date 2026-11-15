@@ -169,21 +169,21 @@ struct MediaExpandedView: View {
     }
 
     private func playerColumn(track: NowPlayingTrack, position: TimeInterval) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 if let data = track.artworkData, let image = NSImage(data: data) {
                     Image(nsImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(width: 48, height: 48)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .frame(width: 40, height: 40)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 } else {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(.white.opacity(0.1))
-                        .frame(width: 48, height: 48)
+                        .frame(width: 40, height: 40)
                         .overlay {
                             Image(systemName: "music.note")
-                                .font(.system(size: 18))
+                                .font(.system(size: 16))
                                 .foregroundStyle(.white.opacity(0.6))
                         }
                 }
