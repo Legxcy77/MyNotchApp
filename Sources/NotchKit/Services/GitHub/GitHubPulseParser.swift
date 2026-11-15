@@ -79,3 +79,4 @@ public enum GitHubPulseParser {
         return "\(parts[parts.count - 2])/\(parts[parts.count - 1])"
     }
 }
+

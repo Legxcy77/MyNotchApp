@@ -22,6 +22,17 @@ public final class NotchStore {
         case askAI(String)
     }
 
+    public enum QuickToolAction: Sendable {
+        case ocr
+        case colorPicker
+        case screenshotArea
+        case screenshotFull
+        case transformClipboard(TextTransformKind)
+        case openCommandPalette
+        case openQuickAI
+        case openClipboard
+    }
+
     @ObservationIgnored public var hoverExitDelay: Duration = .milliseconds(180)
     @ObservationIgnored public var onAction: (@MainActor (Toast.Action) -> Void)?
     @ObservationIgnored public var onServerAction: (@MainActor (DevServerAction) -> Void)?
@@ -31,6 +42,7 @@ public final class NotchStore {
     @ObservationIgnored public var onRunTask: (@MainActor (RepoTask) -> Void)?
     @ObservationIgnored public var onAskAI: (@MainActor (String) -> Void)?
     @ObservationIgnored public var onMediaCommand: (@MainActor (MediaCommand) -> Void)?
+    @ObservationIgnored public var onQuickTool: (@MainActor (QuickToolAction) -> Void)?
     @ObservationIgnored public var onFocusChanged: (@MainActor (FocusSession?) -> Void)?
     @ObservationIgnored public var onModeChanged: (@MainActor (NotchMode) -> Void)?
     @ObservationIgnored public var onToastShown: (@MainActor (Toast) -> Void)?
@@ -91,6 +103,10 @@ public final class NotchStore {
 
     public func performMedia(_ command: MediaCommand) {
         onMediaCommand?(command)
+    }
+
+    public func performQuickTool(_ action: QuickToolAction) {
+        onQuickTool?(action)
     }
 
     public func startFocus(minutes: Int) {

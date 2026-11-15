@@ -13,3 +13,4 @@ struct GeminiClientTests {
         #expect(GeminiClient.extractDelta(fromSSELine: "") == nil)
     }
 }
+

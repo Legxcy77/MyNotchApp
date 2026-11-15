@@ -33,3 +33,4 @@ struct GitHubPulseTests {
         #expect(unchanged.isEmpty)
     }
 }
+

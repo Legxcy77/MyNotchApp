@@ -19,6 +19,7 @@ public struct ErrorLensPayload: Equatable, Sendable {
 public enum ExpandedTab: String, Equatable, Sendable, CaseIterable {
     case overview
     case media
+    case tools
     case focus
     case mirror
     case timeline

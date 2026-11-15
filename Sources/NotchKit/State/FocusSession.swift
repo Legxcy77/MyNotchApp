@@ -29,3 +29,4 @@ public struct FocusSession: Equatable, Sendable {
         return String(format: "%02d:%02d", mins, secs)
     }
 }
+

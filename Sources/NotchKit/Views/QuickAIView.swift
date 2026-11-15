@@ -153,3 +153,4 @@ struct QuickAIView: View {
             .background(.white.opacity(0.1), in: Capsule())
     }
 }
+

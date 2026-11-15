@@ -89,6 +89,10 @@ public struct NotchRootView: View {
                     Color.clear
                 }
             case .expanded:
+                let latestClip = store.state.clipboard.items.compactMap { item -> String? in
+                    if case .text(let t) = item.content { return t }
+                    return nil
+                }.first
                 ExpandedView(
                     clearance: geometry.cameraClearance,
                     expandedTab: store.state.expandedTab,
@@ -103,11 +107,13 @@ public struct NotchRootView: View {
                     focusSession: store.state.focusSession,
                     focusDurationMinutes: store.state.focusDurationMinutes,
                     systemPulse: store.state.systemPulse,
+                    latestClipboardText: latestClip,
                     onSelectTab: { store.send(.setExpandedTab($0)) },
                     onClearFinished: { store.send(.clearFinishedAgents) },
                     onClearRunHistory: { store.send(.clearRunHistory) },
                     onServerAction: { store.perform($0) },
                     onMediaCommand: { store.performMedia($0) },
+                    onQuickTool: { store.performQuickTool($0) },
                     onJoinMeeting: { NSWorkspace.shared.open($0) },
                     onStartFocus: { store.startFocus(minutes: $0) },
                     onStopFocus: { store.stopFocus() },

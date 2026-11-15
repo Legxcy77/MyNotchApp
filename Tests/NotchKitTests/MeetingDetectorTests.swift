@@ -49,3 +49,4 @@ struct MeetingDetectorTests {
         #expect(MeetingDetector.isWithinCountdownWindow(meeting, now: start.addingTimeInterval(2000)) == false)
     }
 }
+

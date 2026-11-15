@@ -131,11 +131,13 @@ struct ExpandedView: View {
     let focusSession: FocusSession?
     let focusDurationMinutes: Int
     let systemPulse: [SystemPulseSample]
+    let latestClipboardText: String?
     let onSelectTab: (ExpandedTab) -> Void
     let onClearFinished: () -> Void
     let onClearRunHistory: () -> Void
     let onServerAction: (NotchStore.DevServerAction) -> Void
     let onMediaCommand: (MediaCommand) -> Void
+    let onQuickTool: (NotchStore.QuickToolAction) -> Void
     let onJoinMeeting: (URL) -> Void
     let onStartFocus: (Int) -> Void
     let onStopFocus: () -> Void
@@ -161,34 +163,22 @@ struct ExpandedView: View {
                     }
                     Spacer()
                     HStack(spacing: 4) {
-                        ExpandedTabPill(
-                            title: "Overview",
-                            isSelected: expandedTab == .overview
-                        ) {
+                        ExpandedTabPill(symbol: "house.fill", title: "Home", isSelected: expandedTab == .overview) {
                             onSelectTab(.overview)
                         }
-                        ExpandedTabPill(
-                            title: "Media",
-                            isSelected: expandedTab == .media
-                        ) {
+                        ExpandedTabPill(symbol: "music.note", title: nil, isSelected: expandedTab == .media) {
                             onSelectTab(.media)
                         }
-                        ExpandedTabPill(
-                            title: "Focus",
-                            isSelected: expandedTab == .focus
-                        ) {
+                        ExpandedTabPill(symbol: "wrench.and.screwdriver.fill", title: nil, isSelected: expandedTab == .tools) {
+                            onSelectTab(.tools)
+                        }
+                        ExpandedTabPill(symbol: "timer", title: nil, isSelected: expandedTab == .focus) {
                             onSelectTab(.focus)
                         }
-                        ExpandedTabPill(
-                            title: "Mirror",
-                            isSelected: expandedTab == .mirror
-                        ) {
+                        ExpandedTabPill(symbol: "camera.fill", title: nil, isSelected: expandedTab == .mirror) {
                             onSelectTab(.mirror)
                         }
-                        ExpandedTabPill(
-                            title: runHistory.isEmpty ? "Timeline" : "Timeline (\(runHistory.count))",
-                            isSelected: expandedTab == .timeline
-                        ) {
+                        ExpandedTabPill(symbol: "clock.arrow.circlepath", title: runHistory.isEmpty ? nil : "\(runHistory.count)", isSelected: expandedTab == .timeline) {
                             onSelectTab(.timeline)
                         }
                     }
@@ -209,6 +199,8 @@ struct ExpandedView: View {
 
             if expandedTab == .media {
                 MediaExpandedView(track: nowPlaying, lyrics: lyrics, onCommand: onMediaCommand)
+            } else if expandedTab == .tools {
+                ToolsTabView(latestClipboardText: latestClipboardText, onAction: onQuickTool)
             } else if expandedTab == .focus {
                 FocusTabView(
                     session: focusSession,
@@ -455,19 +447,88 @@ private struct FocusTabView: View {
     }
 }
 
+private struct ToolsTabView: View {
+    let latestClipboardText: String?
+    let onAction: (NotchStore.QuickToolAction) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                toolTile("text.viewfinder", "OCR") { onAction(.ocr) }
+                toolTile("eyedropper", "Color") { onAction(.colorPicker) }
+                toolTile("rectangle.dashed", "Area Shot") { onAction(.screenshotArea) }
+                toolTile("macwindow", "Full Shot") { onAction(.screenshotFull) }
+            }
+
+            HStack(spacing: 8) {
+                toolTile("sparkles", "Ask AI") { onAction(.openQuickAI) }
+                toolTile("terminal", "Palette") { onAction(.openCommandPalette) }
+                toolTile("doc.on.clipboard", "Clipboard") { onAction(.openClipboard) }
+            }
+
+            if let text = latestClipboardText, !text.isEmpty {
+                let stats = TextTransformer.stats(for: text)
+                HStack(spacing: 6) {
+                    Text("\(stats.words)w · \(stats.characters)c")
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.45))
+                    Spacer()
+                    ForEach(TextTransformKind.allCases, id: \.self) { kind in
+                        Button(kind.rawValue) {
+                            onAction(.transformClipboard(kind))
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(.white.opacity(0.1), in: Capsule())
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func toolTile(_ symbol: String, _ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: symbol)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85))
+                Text(title)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 private struct ExpandedTabPill: View {
-    let title: String
+    let symbol: String
+    let title: String?
     let isSelected: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(isSelected ? .white : .white.opacity(0.5))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(isSelected ? .white.opacity(0.16) : .clear, in: Capsule())
+            HStack(spacing: 4) {
+                Image(systemName: symbol)
+                    .font(.system(size: 10.5, weight: .semibold))
+                if let title {
+                    Text(title)
+                        .font(.system(size: 11, weight: .medium))
+                }
+            }
+            .foregroundStyle(isSelected ? .white : .white.opacity(0.5))
+            .padding(.horizontal, title == nil ? 7 : 9)
+            .padding(.vertical, 4)
+            .background(isSelected ? .white.opacity(0.16) : .clear, in: Capsule())
         }
         .buttonStyle(.plain)
     }

@@ -117,3 +117,4 @@ public struct GeminiClient: Sendable {
         }
     }
 }
+

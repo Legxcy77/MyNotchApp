@@ -72,3 +72,4 @@ public struct SystemPulseTracker: Sendable {
         return nil
     }
 }
+

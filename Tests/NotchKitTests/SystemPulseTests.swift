@@ -31,3 +31,4 @@ struct SystemPulseTests {
         #expect(tracker.ingest(procs, at: t0.addingTimeInterval(40)) == nil)
     }
 }
+

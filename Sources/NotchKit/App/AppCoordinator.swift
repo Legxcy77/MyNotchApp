@@ -32,6 +32,7 @@ final class AppCoordinator {
     private var meetingMonitor: MeetingMonitor?
     private var githubMonitor: GitHubPulseMonitor?
     private var systemPulseMonitor: SystemPulseMonitor?
+    private var keyboardStatusMonitor: KeyboardStatusMonitor?
     private var notifiedMeetingIDs: Set<String> = []
     private let lrclibClient = LRCLibClient()
     private let lyricsCache = LyricsCache()
@@ -93,6 +94,9 @@ final class AppCoordinator {
         }
         store.onMediaCommand = { [weak self] command in
             self?.nowPlaying?.perform(command)
+        }
+        store.onQuickTool = { [weak self] action in
+            self?.handleQuickTool(action)
         }
         store.onFocusChanged = { [weak self] session in
             self?.handleFocusChanged(session)
@@ -170,6 +174,7 @@ final class AppCoordinator {
         startMeetingMonitor()
         startGitHubPulse()
         startSystemPulse()
+        startKeyboardStatus()
     }
 
     private func runQuickAI(prompt: String) {
@@ -226,6 +231,56 @@ final class AppCoordinator {
                 priority: .high,
                 duration: .seconds(6)
             ))
+        }
+    }
+
+    private func startKeyboardStatus() {
+        let monitor = KeyboardStatusMonitor { [weak store] toast in
+            store?.post(toast)
+        }
+        monitor.start()
+        keyboardStatusMonitor = monitor
+    }
+
+    private func handleQuickTool(_ action: NotchStore.QuickToolAction) {
+        switch action {
+        case .ocr:
+            store.send(.hoverChanged(false))
+            QuickToolsService.ocrScreenRegion { [weak store] text in
+                guard let text else { return }
+                store?.post(Toast(title: "OCR copied", subtitle: text.replacingOccurrences(of: "\n", with: " "), symbol: "text.viewfinder", tint: .success, duration: .seconds(3)))
+            }
+        case .colorPicker:
+            store.send(.hoverChanged(false))
+            QuickToolsService.pickColor { [weak store] hex in
+                guard let hex else { return }
+                store?.post(Toast(title: "Copied \(hex)", symbol: "eyedropper", tint: .info, duration: .seconds(3)))
+            }
+        case .screenshotArea:
+            store.send(.hoverChanged(false))
+            QuickToolsService.captureScreenshot(interactive: true)
+        case .screenshotFull:
+            store.send(.hoverChanged(false))
+            QuickToolsService.captureScreenshot(interactive: false)
+        case .transformClipboard(let kind):
+            let latest = store.state.clipboard.items.compactMap { item -> String? in
+                if case .text(let t) = item.content { return t }
+                return nil
+            }.first ?? NSPasteboard.general.string(forType: .string) ?? ""
+            guard !latest.isEmpty else { return }
+            let transformed = TextTransformer.transform(latest, kind)
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(transformed, forType: .string)
+            store.post(Toast(title: "Transformed (\(kind.rawValue))", subtitle: transformed, symbol: "textformat", tint: .success, duration: .seconds(2)))
+        case .openCommandPalette:
+            store.send(.hoverChanged(false))
+            store.send(.setCommandPaletteOpen(true))
+        case .openQuickAI:
+            store.send(.hoverChanged(false))
+            store.send(.setQuickAIOpen(true))
+        case .openClipboard:
+            store.send(.hoverChanged(false))
+            store.send(.setClipboardOpen(true))
         }
     }
 
