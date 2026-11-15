@@ -10,6 +10,15 @@ public final class LockScreenWindowController {
 
     private var lockWindows: [NSWindow] = []
     public private(set) var isLocked = false
+    public var autoLockOnSleepWake: Bool {
+        didSet {
+            UserDefaults.standard.set(autoLockOnSleepWake, forKey: Self.autoLockDefaultsKey)
+        }
+    }
+    private static let autoLockDefaultsKey = "mynotch.autoLockOnSleepWake"
+    private var sleepObserver: NSObjectProtocol?
+    private var screenSleepObserver: NSObjectProtocol?
+    private var wakeObserver: NSObjectProtocol?
 
     public init(
         store: NotchStore,
@@ -19,6 +28,45 @@ public final class LockScreenWindowController {
         self.store = store
         self.faceAuth = faceAuth
         self.onMediaCommand = onMediaCommand
+        if UserDefaults.standard.object(forKey: Self.autoLockDefaultsKey) == nil {
+            self.autoLockOnSleepWake = true
+        } else {
+            self.autoLockOnSleepWake = UserDefaults.standard.bool(forKey: Self.autoLockDefaultsKey)
+        }
+        installWorkspaceObservers()
+    }
+
+    isolated deinit {
+        let nc = NSWorkspace.shared.notificationCenter
+        if let sleepObserver { nc.removeObserver(sleepObserver) }
+        if let screenSleepObserver { nc.removeObserver(screenSleepObserver) }
+        if let wakeObserver { nc.removeObserver(wakeObserver) }
+    }
+
+    private func installWorkspaceObservers() {
+        let nc = NSWorkspace.shared.notificationCenter
+        sleepObserver = nc.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.autoLockOnSleepWake else { return }
+                self.lock()
+            }
+        }
+        screenSleepObserver = nc.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.autoLockOnSleepWake else { return }
+                self.lock()
+            }
+        }
+        wakeObserver = nc.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.autoLockOnSleepWake else { return }
+                if !self.isLocked {
+                    self.lock()
+                } else {
+                    self.beginFaceVerification()
+                }
+            }
+        }
     }
 
     public func toggleLock() {

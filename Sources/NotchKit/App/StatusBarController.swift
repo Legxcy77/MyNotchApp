@@ -13,6 +13,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     var onUnpinLog: (@MainActor () -> Void)?
     var onSetupFaceUnlock: (@MainActor () -> Void)?
     var onLockScreen: (@MainActor () -> Void)?
+    var isAutoLockEnabled: (@MainActor () -> Bool)?
+    var onToggleAutoLock: (@MainActor () -> Void)?
 
     init(store: NotchStore, window: NotchWindowController, launchAtLogin: LaunchAtLoginService, feedback: FeedbackService) {
         self.store = store
@@ -120,6 +122,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(ActionMenuItem(title: "Lock Screen (⌥⌘L)") { [weak self] in
             self?.onLockScreen?()
+        })
+        menu.addItem(ActionMenuItem(title: "Auto-Lock on Sleep/Wake", on: isAutoLockEnabled?() ?? true) { [weak self] in
+            self?.onToggleAutoLock?()
         })
         menu.addItem(ActionMenuItem(title: "Setup Face Unlock…") { [weak self] in
             self?.onSetupFaceUnlock?()

@@ -146,6 +146,12 @@ final class AppCoordinator {
         statusBar.onLockScreen = { [weak self] in
             self?.lockScreenController?.lock()
         }
+        statusBar.isAutoLockEnabled = { [weak self] in
+            self?.lockScreenController?.autoLockOnSleepWake ?? true
+        }
+        statusBar.onToggleAutoLock = { [weak self] in
+            self?.lockScreenController?.autoLockOnSleepWake.toggle()
+        }
 
         lockScreenController = LockScreenWindowController(
             store: store,
