@@ -168,6 +168,12 @@ struct ExpandedView: View {
                             onSelectTab(.media)
                         }
                         ExpandedTabPill(
+                            title: "Mirror",
+                            isSelected: expandedTab == .mirror
+                        ) {
+                            onSelectTab(.mirror)
+                        }
+                        ExpandedTabPill(
                             title: runHistory.isEmpty ? "Timeline" : "Timeline (\(runHistory.count))",
                             isSelected: expandedTab == .timeline
                         ) {
@@ -191,6 +197,8 @@ struct ExpandedView: View {
 
             if expandedTab == .media {
                 MediaExpandedView(track: nowPlaying, lyrics: lyrics, onCommand: onMediaCommand)
+            } else if expandedTab == .mirror {
+                CameraMirrorView()
             } else if expandedTab == .timeline {
                 if runHistory.isEmpty {
                     Text("No completed commands or agent runs yet.")
