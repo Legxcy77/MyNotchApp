@@ -58,4 +58,22 @@ struct FaceAuthTests {
         #expect(simDiff < 0.2)
         #expect(FaceEmbeddingMath.bestSimilarity(probe: aClose, gallery: [bDiff, a]) == simSame)
     }
+
+    @Test func profileStoreSavesLoadsAndDeletesWith0600() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mynotch-face-test-\(UUID().uuidString)", isDirectory: true)
+        let fileURL = tempDir.appendingPathComponent("face_profile.json")
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let profile = FaceProfile(embeddings: [[0.1, 0.2, 0.3]])
+        #expect(FaceProfileStore.save(profile, to: fileURL) == true)
+        #expect(FaceProfileStore.load(from: fileURL)?.embeddings == [[0.1, 0.2, 0.3]])
+
+        let attrs = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let perms = (attrs[.posixPermissions] as? NSNumber)?.intValue
+        #expect(perms == 0o600)
+
+        #expect(FaceProfileStore.delete(at: fileURL) == true)
+        #expect(FaceProfileStore.load(from: fileURL) == nil)
+    }
 }

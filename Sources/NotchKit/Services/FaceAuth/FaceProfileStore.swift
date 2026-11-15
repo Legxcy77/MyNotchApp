@@ -1,5 +1,4 @@
 import Foundation
-import Security
 
 public struct FaceProfile: Codable, Equatable, Sendable {
     public let embeddings: [[Float]]
@@ -12,56 +11,60 @@ public struct FaceProfile: Codable, Equatable, Sendable {
 }
 
 public enum FaceProfileStore {
-    private static let service = "com.pawalit.MyNotchApp.faceprofile"
-    private static let account = "owner"
+    private static var defaultDirectory: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".mynotch", isDirectory: true)
+    }
+
+    private static var defaultFileURL: URL {
+        defaultDirectory.appendingPathComponent("face_profile.json")
+    }
 
     public static var hasEnrolledFace: Bool {
-        load() != nil
+        FileManager.default.fileExists(atPath: defaultFileURL.path)
     }
 
     @discardableResult
-    public static func save(_ profile: FaceProfile) -> Bool {
-        guard let data = try? JSONEncoder().encode(profile) else { return false }
-
-        let baseQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-        SecItemDelete(baseQuery as CFDictionary)
-
-        var addQuery = baseQuery
-        addQuery[kSecValueData as String] = data
-        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-        let status = SecItemAdd(addQuery as CFDictionary, nil)
-        return status == errSecSuccess
+    public static func save(_ profile: FaceProfile, to url: URL? = nil) -> Bool {
+        let targetURL = url ?? defaultFileURL
+        let dirURL = targetURL.deletingLastPathComponent()
+        do {
+            try FileManager.default.createDirectory(
+                at: dirURL,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
+            )
+            let data = try JSONEncoder().encode(profile)
+            try data.write(to: targetURL, options: .atomic)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o600],
+                ofItemAtPath: targetURL.path
+            )
+            return true
+        } catch {
+            return false
+        }
     }
 
-    public static func load() -> FaceProfile? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess, let data = result as? Data else {
+    public static func load(from url: URL? = nil) -> FaceProfile? {
+        let targetURL = url ?? defaultFileURL
+        guard let data = try? Data(contentsOf: targetURL) else {
             return nil
         }
         return try? JSONDecoder().decode(FaceProfile.self, from: data)
     }
 
     @discardableResult
-    public static func delete() -> Bool {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-        let status = SecItemDelete(query as CFDictionary)
-        return status == errSecSuccess || status == errSecItemNotFound
+    public static func delete(at url: URL? = nil) -> Bool {
+        let targetURL = url ?? defaultFileURL
+        guard FileManager.default.fileExists(atPath: targetURL.path) else {
+            return true
+        }
+        do {
+            try FileManager.default.removeItem(at: targetURL)
+            return true
+        } catch {
+            return false
+        }
     }
 }
-
