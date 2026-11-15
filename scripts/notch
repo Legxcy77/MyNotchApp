@@ -12,8 +12,14 @@ fi
 TOKEN="$(<"$TOKEN_FILE")"
 TOKEN="${TOKEN//$'\n'/}"
 
-json_escape() {
-  python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1"
+json_str() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\r'/}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\t'/\\t}"
+  printf '"%s"' "$s"
 }
 
 post_json() {
@@ -51,33 +57,31 @@ case "$cmd" in
         *) echo "unknown flag: $1" >&2; exit 2 ;;
       esac
     done
-    payload=$(python3 -c '
-import json, sys
-d = {"title": sys.argv[1]}
-for k, v in zip(["subtitle","tint","symbol","priority","key","bundleId"], sys.argv[2:8]):
-    if v: d[k] = v
-if sys.argv[8]: d["ttl"] = float(sys.argv[8])
-if sys.argv[9]:
-    with open(sys.argv[9], "r", errors="replace") as f:
-        lines = f.read().splitlines()[-30:]
-    if lines:
-        d["errorLog"] = "\n".join(lines)
-print(json.dumps(d))
-' "$title" "$subtitle" "$tint" "$symbol" "$priority" "$key" "$bundle_id" "$ttl" "$error_file")
-    post_json "/toast" "$payload"
+    local -a fields
+    fields+=("\"title\":$(json_str "$title")")
+    [[ -n "$subtitle" ]] && fields+=("\"subtitle\":$(json_str "$subtitle")")
+    [[ -n "$tint" ]] && fields+=("\"tint\":$(json_str "$tint")")
+    [[ -n "$symbol" ]] && fields+=("\"symbol\":$(json_str "$symbol")")
+    [[ -n "$priority" ]] && fields+=("\"priority\":$(json_str "$priority")")
+    [[ -n "$key" ]] && fields+=("\"key\":$(json_str "$key")")
+    [[ -n "$bundle_id" ]] && fields+=("\"bundleId\":$(json_str "$bundle_id")")
+    [[ -n "$ttl" ]] && fields+=("\"ttl\":$ttl")
+    if [[ -n "$error_file" && -r "$error_file" ]]; then
+      local err_text
+      err_text="$(tail -n 30 "$error_file")"
+      [[ -n "$err_text" ]] && fields+=("\"errorLog\":$(json_str "$err_text")")
+    fi
+    post_json "/toast" "{${(j:,:)fields}}"
     ;;
   progress)
     key="${1:?usage: notch progress <key> <title> <0..1> [subtitle]}"
     title="${2:?}"
     value="${3:?}"
     subtitle="${4:-}"
-    payload=$(python3 -c '
-import json, sys
-d = {"key": sys.argv[1], "title": sys.argv[2], "value": float(sys.argv[3])}
-if sys.argv[4]: d["subtitle"] = sys.argv[4]
-print(json.dumps(d))
-' "$key" "$title" "$value" "$subtitle")
-    post_json "/progress" "$payload"
+    local -a fields
+    fields+=("\"key\":$(json_str "$key")" "\"title\":$(json_str "$title")" "\"value\":$value")
+    [[ -n "$subtitle" ]] && fields+=("\"subtitle\":$(json_str "$subtitle")")
+    post_json "/progress" "{${(j:,:)fields}}"
     ;;
   activity)
     source="${1:?usage: notch activity <source> <session> <working|waiting|done|failed> [title] [cwd]}"
@@ -85,14 +89,11 @@ print(json.dumps(d))
     state="${3:?}"
     title="${4:-}"
     cwd="${5:-}"
-    payload=$(python3 -c '
-import json, sys
-d = {"source": sys.argv[1], "session": sys.argv[2], "state": sys.argv[3]}
-if sys.argv[4]: d["title"] = sys.argv[4]
-if sys.argv[5]: d["cwd"] = sys.argv[5]
-print(json.dumps(d))
-' "$source" "$session" "$state" "$title" "$cwd")
-    post_json "/activity" "$payload"
+    local -a fields
+    fields+=("\"source\":$(json_str "$source")" "\"session\":$(json_str "$session")" "\"state\":$(json_str "$state")")
+    [[ -n "$title" ]] && fields+=("\"title\":$(json_str "$title")")
+    [[ -n "$cwd" ]] && fields+=("\"cwd\":$(json_str "$cwd")")
+    post_json "/activity" "{${(j:,:)fields}}"
     ;;
   logpin)
     target="${1:?usage: notch logpin <path|--cmd CMD> [--pattern REGEX]}"
@@ -109,15 +110,11 @@ print(json.dumps(d))
         *) echo "unknown flag: $1" >&2; exit 2 ;;
       esac
     done
-    payload=$(python3 -c '
-import json, sys
-d = {}
-if sys.argv[1]: d["path"] = sys.argv[1]
-if sys.argv[2]: d["command"] = sys.argv[2]
-if sys.argv[3]: d["pattern"] = sys.argv[3]
-print(json.dumps(d))
-' "$path" "$command" "$pattern")
-    post_json "/logpin" "$payload"
+    local -a fields
+    [[ -n "$path" ]] && fields+=("\"path\":$(json_str "$path")")
+    [[ -n "$command" ]] && fields+=("\"command\":$(json_str "$command")")
+    [[ -n "$pattern" ]] && fields+=("\"pattern\":$(json_str "$pattern")")
+    post_json "/logpin" "{${(j:,:)fields}}"
     ;;
   unpin)
     post_json "/logpin" '{"action":"unpin"}'
@@ -127,4 +124,3 @@ print(json.dumps(d))
     exit 2
     ;;
 esac
-
