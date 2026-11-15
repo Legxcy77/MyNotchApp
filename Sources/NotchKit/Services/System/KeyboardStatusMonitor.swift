@@ -5,8 +5,6 @@ import Foundation
 @MainActor
 public final class KeyboardStatusMonitor {
     private var tISObserver: NSObjectProtocol?
-    private var flagsMonitor: Any?
-    private var lastCapsLock: Bool = NSEvent.modifierFlags.contains(.capsLock)
     private var lastSourceID: String?
     private let onToast: @MainActor (Toast) -> Void
 
@@ -17,9 +15,6 @@ public final class KeyboardStatusMonitor {
     isolated deinit {
         if let tISObserver {
             DistributedNotificationCenter.default().removeObserver(tISObserver)
-        }
-        if let flagsMonitor {
-            NSEvent.removeMonitor(flagsMonitor)
         }
     }
 
@@ -35,23 +30,12 @@ public final class KeyboardStatusMonitor {
                 self?.handleInputSourceChanged()
             }
         }
-
-        flagsMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
-            let caps = event.modifierFlags.contains(.capsLock)
-            Task { @MainActor [weak self] in
-                self?.handleFlagsChanged(capsLock: caps)
-            }
-        }
     }
 
     public func stop() {
         if let tISObserver {
             DistributedNotificationCenter.default().removeObserver(tISObserver)
             self.tISObserver = nil
-        }
-        if let flagsMonitor {
-            NSEvent.removeMonitor(flagsMonitor)
-            self.flagsMonitor = nil
         }
     }
 
@@ -65,19 +49,6 @@ public final class KeyboardStatusMonitor {
             subtitle: info.name,
             symbol: "globe",
             tint: .neutral,
-            priority: .low,
-            duration: .seconds(1.2)
-        ))
-    }
-
-    private func handleFlagsChanged(capsLock: Bool) {
-        guard capsLock != lastCapsLock else { return }
-        lastCapsLock = capsLock
-        onToast(Toast(
-            key: "kbd:caps",
-            title: capsLock ? "Caps Lock ON" : "Caps Lock OFF",
-            symbol: capsLock ? "capslock.fill" : "capslock",
-            tint: capsLock ? .waiting : .neutral,
             priority: .low,
             duration: .seconds(1.2)
         ))

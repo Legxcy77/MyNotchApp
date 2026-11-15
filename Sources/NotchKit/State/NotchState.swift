@@ -25,6 +25,25 @@ public enum ExpandedTab: String, Equatable, Sendable, CaseIterable {
     case timeline
 }
 
+public struct AIChatMessage: Identifiable, Equatable, Sendable {
+    public enum Role: String, Sendable, Equatable {
+        case user
+        case model
+    }
+
+    public let id: UUID
+    public let role: Role
+    public var text: String
+    public let timestamp: Date
+
+    public init(id: UUID = UUID(), role: Role, text: String, timestamp: Date = Date()) {
+        self.id = id
+        self.role = role
+        self.text = text
+        self.timestamp = timestamp
+    }
+}
+
 public struct NotchState: Equatable, Sendable {
     public var isHovering = false
     public var isDragging = false
@@ -33,6 +52,7 @@ public struct NotchState: Equatable, Sendable {
     public var isQuickAIOpen = false
     public var aiPrompt = ""
     public var aiResponse = ""
+    public var aiMessages: [AIChatMessage] = []
     public var isAILoading = false
     public var activeError: ErrorLensPayload?
     public var activeToast: Toast?
@@ -123,6 +143,9 @@ public enum NotchEvent: Sendable, Equatable {
     case setQuickAIOpen(Bool)
     case setAIPrompt(String)
     case aiResponseUpdated(String, isLoading: Bool)
+    case appendAIChatMessage(AIChatMessage)
+    case updateLastAIChatMessage(String, isLoading: Bool)
+    case clearAIChat
     case nowPlayingUpdated(NowPlayingTrack?)
     case lyricsUpdated(LRCDocument?)
     case nextMeetingUpdated(UpcomingMeeting?)
@@ -233,6 +256,25 @@ public enum NotchReducer {
         case .aiResponseUpdated(let text, let loading):
             s.aiResponse = text
             s.isAILoading = loading
+            return []
+        case .appendAIChatMessage(let msg):
+            s.aiMessages.append(msg)
+            if s.aiMessages.count > 40 {
+                s.aiMessages.removeFirst(s.aiMessages.count - 40)
+            }
+            return []
+        case .updateLastAIChatMessage(let text, let loading):
+            s.aiResponse = text
+            s.isAILoading = loading
+            if !s.aiMessages.isEmpty {
+                s.aiMessages[s.aiMessages.count - 1].text = text
+            }
+            return []
+        case .clearAIChat:
+            s.aiMessages.removeAll()
+            s.aiResponse = ""
+            s.aiPrompt = ""
+            s.isAILoading = false
             return []
         case .nowPlayingUpdated(let track):
             s.nowPlaying = track

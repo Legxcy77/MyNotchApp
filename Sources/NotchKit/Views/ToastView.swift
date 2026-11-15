@@ -155,14 +155,14 @@ struct ExpandedView: View {
                 HStack(alignment: .center, spacing: 8) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(context.date, format: .dateTime.hour().minute())
-                            .font(.system(size: 30, weight: .semibold, design: .rounded))
+                            .font(.system(size: 26, weight: .semibold, design: .rounded))
                             .monospacedDigit()
                         Text(context.date, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: 11.5, weight: .medium))
                             .foregroundStyle(.white.opacity(0.5))
                     }
                     Spacer()
-                    HStack(spacing: 4) {
+                    HStack(spacing: 3) {
                         ExpandedTabPill(symbol: "house.fill", title: "Home", isSelected: expandedTab == .overview) {
                             onSelectTab(.overview)
                         }
@@ -182,16 +182,19 @@ struct ExpandedView: View {
                             onSelectTab(.timeline)
                         }
                     }
+                    .padding(3)
+                    .background(.white.opacity(0.06), in: Capsule())
+
                     if expandedTab == .overview && hasFinished {
                         Button("Clear", action: onClearFinished)
                             .buttonStyle(.plain)
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.45))
+                            .foregroundStyle(.white.opacity(0.5))
                     } else if expandedTab == .timeline && !runHistory.isEmpty {
                         Button("Clear", action: onClearRunHistory)
                             .buttonStyle(.plain)
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.45))
+                            .foregroundStyle(.white.opacity(0.5))
                     }
                 }
                 .foregroundStyle(.white)
@@ -213,119 +216,224 @@ struct ExpandedView: View {
                 CameraMirrorView()
             } else if expandedTab == .timeline {
                 if runHistory.isEmpty {
-                    Text("No completed commands or agent runs yet.")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.white.opacity(0.4))
+                    bentoBox {
+                        Text("No completed commands or agent runs yet.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.45))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    }
                 } else {
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 5) {
-                            ForEach(runHistory) { record in
-                                RunTimelineRow(record: record)
-                            }
-                        }
-                    }
-                }
-            } else if sessions.isEmpty && servers.isEmpty && stagedFiles.isEmpty && gitStatus == nil && nextMeeting == nil && systemPulse.isEmpty {
-                Text("All quiet. Builds, agents and servers will show up here.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.4))
-            } else {
-                if let latest = systemPulse.last {
-                    SystemPulseRow(samples: systemPulse, latest: latest)
-                }
-                if let meeting = nextMeeting {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        HStack(spacing: 8) {
-                            Image(systemName: "video.fill")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(Toast.Tint.waiting.color)
-                            Text(meeting.title)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.9))
-                                .lineLimit(1)
-                            Spacer(minLength: 0)
-                            Text(MeetingDetector.countdownText(until: meeting.startDate, now: context.date))
-                                .font(.system(size: 11, design: .monospaced))
-                                .monospacedDigit()
-                                .foregroundStyle(.white.opacity(0.55))
-                            Button("Join") {
-                                onJoinMeeting(meeting.joinURL)
-                            }
-                            .buttonStyle(.plain)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.black)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2.5)
-                            .background(Toast.Tint.waiting.color, in: Capsule())
-                        }
-                    }
-                }
-                if let git = gitStatus {
-                    HStack(spacing: 8) {
-                        Image(systemName: "arrow.triangle.branch")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Toast.Tint.info.color)
-                        Text(git.repoName)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.8))
-                        Text(git.branch)
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.55))
-                        if git.dirtyCount > 0 {
-                            Text("\(git.dirtyCount) dirty")
-                                .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(Toast.Tint.waiting.color)
-                        }
-                        if git.ahead > 0 || git.behind > 0 {
-                            Text("↑\(git.ahead) ↓\(git.behind)")
-                                .font(.system(size: 10, design: .monospaced))
-                                .foregroundStyle(.white.opacity(0.45))
-                        }
-                        Spacer(minLength: 0)
-                    }
-                }
-                if !sessions.isEmpty {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        VStack(alignment: .leading, spacing: 5) {
-                            ForEach(sessions.prefix(3)) { session in
-                                AgentSessionRow(session: session, now: context.date)
-                            }
-                        }
-                    }
-                }
-
-                if !servers.isEmpty {
-                    VStack(alignment: .leading, spacing: 5) {
-                        ForEach(servers.prefix(3)) { server in
-                            DevServerRow(server: server, onAction: onServerAction)
-                        }
-                    }
-                }
-
-                if !stagedFiles.isEmpty {
-                    HStack(spacing: 8) {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 6) {
-                                ForEach(stagedFiles, id: \.self) { url in
-                                    StagedFileChip(url: url) {
-                                        onRemoveFile(url)
-                                    }
+                    bentoBox {
+                        ScrollView(.vertical, showsIndicators: false) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(runHistory) { record in
+                                    RunTimelineRow(record: record)
                                 }
                             }
                         }
-                        Button("Clear", action: onClearFiles)
-                            .buttonStyle(.plain)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.45))
                     }
                 }
+            } else {
+                overviewBento
             }
 
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 22)
-        .padding(.top, clearance + 12)
-        .padding(.bottom, 14)
+        .padding(.horizontal, 20)
+        .padding(.top, clearance + 10)
+        .padding(.bottom, 12)
+    }
+
+    @ViewBuilder
+    private var overviewBento: some View {
+        VStack(spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                // Left Bento Card: Now Playing or Live Workspace Status
+                bentoBox {
+                    if let track = nowPlaying, !track.title.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 10) {
+                                if let artData = track.artworkData, let img = NSImage(data: artData) {
+                                    Image(nsImage: img)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: 40, height: 40)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                } else {
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(.white.opacity(0.1))
+                                        .frame(width: 40, height: 40)
+                                        .overlay(Image(systemName: "music.note").foregroundStyle(.white.opacity(0.6)))
+                                }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(track.title)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(.white.opacity(0.95))
+                                        .lineLimit(1)
+                                    Text(track.artist)
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.white.opacity(0.55))
+                                        .lineLimit(1)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            HStack(spacing: 18) {
+                                Button { onMediaCommand(.previous) } label: {
+                                    Image(systemName: "backward.fill").font(.system(size: 12))
+                                }.buttonStyle(.plain)
+                                Button { onMediaCommand(.togglePlayPause) } label: {
+                                    Image(systemName: track.isPlaying ? "pause.fill" : "play.fill").font(.system(size: 14))
+                                }.buttonStyle(.plain)
+                                Button { onMediaCommand(.next) } label: {
+                                    Image(systemName: "forward.fill").font(.system(size: 12))
+                                }.buttonStyle(.plain)
+                                Spacer()
+                                Button("Lyrics") { onSelectTab(.media) }
+                                    .buttonStyle(.plain)
+                                    .font(.system(size: 10.5, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.6))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(.white.opacity(0.08), in: Capsule())
+                            }
+                            .foregroundStyle(.white.opacity(0.9))
+                        }
+                    } else {
+                        VStack(alignment: .leading, spacing: 6) {
+                            if let latest = systemPulse.last {
+                                SystemPulseRow(samples: systemPulse, latest: latest)
+                            }
+                            if let git = gitStatus {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.triangle.branch")
+                                        .font(.system(size: 10.5, weight: .semibold))
+                                        .foregroundStyle(Toast.Tint.info.color)
+                                    Text(git.repoName)
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(.white.opacity(0.85))
+                                        .lineLimit(1)
+                                    Text(git.branch)
+                                        .font(.system(size: 10.5, design: .monospaced))
+                                        .foregroundStyle(.white.opacity(0.55))
+                                        .lineLimit(1)
+                                    if git.dirtyCount > 0 {
+                                        Text("\(git.dirtyCount)M")
+                                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                            .foregroundStyle(Toast.Tint.waiting.color)
+                                    }
+                                }
+                            }
+                            if let meeting = nextMeeting {
+                                TimelineView(.periodic(from: .now, by: 1)) { context in
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "video.fill")
+                                            .font(.system(size: 10.5))
+                                            .foregroundStyle(Toast.Tint.waiting.color)
+                                        Text(meeting.title)
+                                            .font(.system(size: 11, weight: .medium))
+                                            .foregroundStyle(.white.opacity(0.9))
+                                            .lineLimit(1)
+                                        Spacer(minLength: 0)
+                                        Text(MeetingDetector.countdownText(until: meeting.startDate, now: context.date))
+                                            .font(.system(size: 10.5, design: .monospaced))
+                                            .foregroundStyle(.white.opacity(0.6))
+                                        Button("Join") { onJoinMeeting(meeting.joinURL) }
+                                            .buttonStyle(.plain)
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .foregroundStyle(.black)
+                                            .padding(.horizontal, 7)
+                                            .padding(.vertical, 2)
+                                            .background(Toast.Tint.waiting.color, in: Capsule())
+                                    }
+                                }
+                            }
+                            if systemPulse.isEmpty && gitStatus == nil && nextMeeting == nil {
+                                HStack(spacing: 6) {
+                                    Circle().fill(Toast.Tint.success.color).frame(width: 7, height: 7)
+                                    Text("All quiet · Ready")
+                                        .font(.system(size: 11.5, weight: .medium))
+                                        .foregroundStyle(.white.opacity(0.65))
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                            }
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 88, alignment: .topLeading)
+
+                // Right Bento Card: 2x2 Quick Launch Grid
+                bentoBox {
+                    VStack(spacing: 6) {
+                        HStack(spacing: 6) {
+                            quickTile("sparkles", "Ask AI") { onQuickTool(.openQuickAI) }
+                            quickTile("terminal", "Palette") { onQuickTool(.openCommandPalette) }
+                        }
+                        HStack(spacing: 6) {
+                            quickTile("doc.on.clipboard", "Clipboard") { onQuickTool(.openClipboard) }
+                            quickTile("text.viewfinder", "Screen OCR") { onQuickTool(.ocr) }
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 88)
+            }
+
+            if !sessions.isEmpty || !servers.isEmpty || !stagedFiles.isEmpty {
+                bentoBox {
+                    VStack(alignment: .leading, spacing: 5) {
+                        if !sessions.isEmpty {
+                            TimelineView(.periodic(from: .now, by: 1)) { context in
+                                ForEach(sessions.prefix(2)) { session in
+                                    AgentSessionRow(session: session, now: context.date)
+                                }
+                            }
+                        }
+                        if !servers.isEmpty {
+                            ForEach(servers.prefix(2)) { server in
+                                DevServerRow(server: server, onAction: onServerAction)
+                            }
+                        }
+                        if !stagedFiles.isEmpty {
+                            HStack(spacing: 8) {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 6) {
+                                        ForEach(stagedFiles, id: \.self) { url in
+                                            StagedFileChip(url: url) { onRemoveFile(url) }
+                                        }
+                                    }
+                                }
+                                Button("Clear", action: onClearFiles)
+                                    .buttonStyle(.plain)
+                                    .font(.system(size: 10.5, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.5))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func bentoBox<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .padding(10)
+            .background(.white.opacity(0.065), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func quickTile(_ symbol: String, _ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: symbol)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85))
+                Text(title)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.92))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, minHeight: 31)
+            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -452,58 +560,81 @@ private struct ToolsTabView: View {
     let onAction: (NotchStore.QuickToolAction) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                toolTile("text.viewfinder", "OCR") { onAction(.ocr) }
-                toolTile("eyedropper", "Color") { onAction(.colorPicker) }
-                toolTile("rectangle.dashed", "Area Shot") { onAction(.screenshotArea) }
-                toolTile("macwindow", "Full Shot") { onAction(.screenshotFull) }
-            }
-
-            HStack(spacing: 8) {
-                toolTile("sparkles", "Ask AI") { onAction(.openQuickAI) }
-                toolTile("terminal", "Palette") { onAction(.openCommandPalette) }
-                toolTile("doc.on.clipboard", "Clipboard") { onAction(.openClipboard) }
-            }
-
-            if let text = latestClipboardText, !text.isEmpty {
-                let stats = TextTransformer.stats(for: text)
+        HStack(alignment: .top, spacing: 10) {
+            // Left Bento Box: Capture & Inspect (2x2)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("CAPTURE")
+                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.4))
                 HStack(spacing: 6) {
-                    Text("\(stats.words)w · \(stats.characters)c")
-                        .font(.system(size: 10.5, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.45))
-                    Spacer()
-                    ForEach(TextTransformKind.allCases, id: \.self) { kind in
-                        Button(kind.rawValue) {
-                            onAction(.transformClipboard(kind))
-                        }
-                        .buttonStyle(.plain)
-                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(.white.opacity(0.1), in: Capsule())
-                    }
+                    toolTile("rectangle.dashed", "Area Shot") { onAction(.screenshotArea) }
+                    toolTile("macwindow", "Full Shot") { onAction(.screenshotFull) }
+                }
+                HStack(spacing: 6) {
+                    toolTile("text.viewfinder", "Screen OCR") { onAction(.ocr) }
+                    toolTile("eyedropper", "Color Pick") { onAction(.colorPicker) }
                 }
             }
+            .padding(10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(.white.opacity(0.065), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            // Right Bento Box: Quick Actions & Text Tools
+            VStack(alignment: .leading, spacing: 6) {
+                Text("ACTIONS & TEXT")
+                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.4))
+                HStack(spacing: 6) {
+                    toolTile("sparkles", "AI Chat") { onAction(.openQuickAI) }
+                    toolTile("terminal", "Palette") { onAction(.openCommandPalette) }
+                    toolTile("doc.on.clipboard", "Clips") { onAction(.openClipboard) }
+                }
+
+                if let text = latestClipboardText, !text.isEmpty {
+                    let stats = TextTransformer.stats(for: text)
+                    HStack(spacing: 4) {
+                        Text("\(stats.words)w·\(stats.characters)c")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.45))
+                        Spacer(minLength: 0)
+                        ForEach(TextTransformKind.allCases, id: \.self) { kind in
+                            Button(kind.rawValue) {
+                                onAction(.transformClipboard(kind))
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.9))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .background(.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        }
+                    }
+                } else {
+                    Text("Copy text to transform (UPPER / lower / Clean / JSON)")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.white.opacity(0.35))
+                        .lineLimit(1)
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(.white.opacity(0.065), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func toolTile(_ symbol: String, _ title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 Image(systemName: symbol)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.85))
                 Text(title)
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.9))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.92))
                     .lineLimit(1)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .frame(maxWidth: .infinity, minHeight: 34)
+            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
     }

@@ -82,6 +82,18 @@ public struct GeminiClient: Sendable {
         apiKey: String,
         onDelta: @escaping @Sendable (String) async -> Void
     ) async throws {
+        try await streamChat(
+            messages: [AIChatMessage(role: .user, text: prompt)],
+            apiKey: apiKey,
+            onDelta: onDelta
+        )
+    }
+
+    public func streamChat(
+        messages: [AIChatMessage],
+        apiKey: String,
+        onDelta: @escaping @Sendable (String) async -> Void
+    ) async throws {
         guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw GeminiError.missingAPIKey
         }
@@ -89,14 +101,34 @@ public struct GeminiClient: Sendable {
             return
         }
 
+        let contents: [[String: Any]] = messages
+            .suffix(12)
+            .filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .map { msg in
+                [
+                    "role": msg.role.rawValue,
+                    "parts": [["text": msg.text]]
+                ]
+            }
+
+        let systemPrompt = """
+        You are the built-in Quick AI chat assistant inside MyNotchApp, a personal macOS Dynamic Island / Notch developer cockpit built with Swift 6, SwiftUI, and AppKit.
+        Match the user's language (Thai or English). Keep answers concise, crisp, and easy to read inside a compact notch chat bubble.
+        MyNotchApp features & shortcuts:
+        - ⌥Space: Command Palette (package.json / Makefile / Package.swift tasks)
+        - ⌥⌘V: Smart Clipboard & History (JWT, JSON, Base64, URL, Unix timestamp, Hex, UUID)
+        - ⌥A: Quick AI Chat (presets: TH ↔ EN, Explain Error, Explain Regex / Code)
+        - Tabs: Overview (Agents, Dev Servers, Git, GitHub PR/CI, Meeting, System Pulse), Media (Spotify/Apple Music/Safari/Zen/Chrome + LRCLib lyrics), Tools (Area/Full Screenshot, Vision OCR TH/EN, Color Picker Hex, Text Transformer), Focus (Timer + Shortcuts), Camera (Mirror), Timeline (Run history).
+        """
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let body: [String: Any] = [
             "systemInstruction": [
-                "parts": [["text": "Reply concisely and directly for a compact macOS notch quick-assistant. Match the user's language."]]
+                "parts": [["text": systemPrompt]]
             ],
-            "contents": [["parts": [["text": prompt]]]],
+            "contents": contents,
             "generationConfig": [
                 "maxOutputTokens": 1024
             ]

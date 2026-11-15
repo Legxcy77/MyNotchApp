@@ -4,7 +4,7 @@ import CoreGraphics
 public enum IslandLayout {
     /// Fixed panel canvas: big enough for the largest state plus shadow. The panel never resizes.
     public static let panelSize = CGSize(width: 760, height: 340)
-    public static let expandedSize = CGSize(width: 560, height: 200)
+    public static let expandedSize = CGSize(width: 600, height: 224)
     public static let toastBodyHeight: CGFloat = 54
     public static let fileDropHeight: CGFloat = 120
 

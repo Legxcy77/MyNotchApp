@@ -180,11 +180,12 @@ public struct NotchRootView: View {
                 QuickAIView(
                     clearance: geometry.cameraClearance,
                     prompt: store.state.aiPrompt,
-                    response: store.state.aiResponse,
+                    messages: store.state.aiMessages,
                     isLoading: store.state.isAILoading,
                     latestClipboardText: latestClip,
                     onPromptChange: { store.send(.setAIPrompt($0)) },
                     onSubmit: { store.askAI($0) },
+                    onClearChat: { store.send(.clearAIChat) },
                     onClose: { store.send(.setQuickAIOpen(false)) }
                 )
                 .transition(.islandContent)

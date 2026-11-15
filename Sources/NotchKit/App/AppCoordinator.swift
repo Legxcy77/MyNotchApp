@@ -179,25 +179,39 @@ final class AppCoordinator {
 
     private func runQuickAI(prompt: String) {
         aiTask?.cancel()
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        store.send(.appendAIChatMessage(AIChatMessage(role: .user, text: trimmed)))
+        store.send(.setAIPrompt(""))
+
         guard let apiKey = GeminiKeychain.loadKey() else {
-            store.send(.aiResponseUpdated("Please enter your Gemini API key above.", isLoading: false))
+            store.send(.appendAIChatMessage(AIChatMessage(role: .model, text: "Please enter your Gemini API key above.")))
             return
         }
-        store.send(.setAIPrompt(prompt))
-        store.send(.aiResponseUpdated("", isLoading: true))
+
+        let historySnapshot = store.state.aiMessages
+        store.send(.appendAIChatMessage(AIChatMessage(role: .model, text: "")))
+        store.send(.updateLastAIChatMessage("", isLoading: true))
+
         let client = geminiClient
         let storeRef = store
         aiTask = Task { [weak storeRef] in
             do {
-                try await client.streamResponse(prompt: prompt, apiKey: apiKey) { delta in
+                try await client.streamChat(messages: historySnapshot, apiKey: apiKey) { delta in
                     await MainActor.run {
                         guard let storeRef else { return }
-                        storeRef.send(.aiResponseUpdated(storeRef.state.aiResponse + delta, isLoading: true))
+                        storeRef.send(.updateLastAIChatMessage(storeRef.state.aiResponse + delta, isLoading: true))
                     }
                 }
-                storeRef?.send(.aiResponseUpdated(storeRef?.state.aiResponse ?? "", isLoading: false))
+                await MainActor.run {
+                    guard let storeRef else { return }
+                    storeRef.send(.updateLastAIChatMessage(storeRef.state.aiResponse, isLoading: false))
+                }
             } catch {
-                storeRef?.send(.aiResponseUpdated("Error: \(error.localizedDescription)", isLoading: false))
+                await MainActor.run {
+                    storeRef?.send(.updateLastAIChatMessage("Error: \(error.localizedDescription)", isLoading: false))
+                }
             }
         }
     }

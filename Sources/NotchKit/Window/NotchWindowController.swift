@@ -107,6 +107,10 @@ final class NotchWindowController {
             return event
         }) { monitors.append(l) }
 
+        if let clickOutside = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown], handler: { [weak self] _ in
+            MainActor.assumeIsolated { self?.handleOutsideClick() }
+        }) { monitors.append(clickOutside) }
+
         observers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -133,6 +137,23 @@ final class NotchWindowController {
         let inside = rect.contains(NSEvent.mouseLocation)
         if panel.ignoresMouseEvents == inside { panel.ignoresMouseEvents = !inside }
         store.setHovering(inside)
+    }
+
+    private func handleOutsideClick() {
+        guard isVisible, store.mode != .collapsed else { return }
+        let rect = IslandLayout.hitRect(
+            for: store.mode,
+            geometry: store.geometry,
+            hasActiveAgents: store.state.showsEars
+        )
+        guard !rect.contains(NSEvent.mouseLocation) else { return }
+        if store.state.isQuickAIOpen { store.send(.setQuickAIOpen(false)) }
+        if store.state.isClipboardOpen { store.send(.setClipboardOpen(false)) }
+        if store.state.isCommandPaletteOpen { store.send(.setCommandPaletteOpen(false)) }
+        if store.state.activeError != nil { store.send(.closeErrorLens) }
+        store.setHovering(false)
+        store.send(.hoverChanged(false))
+        if !panel.ignoresMouseEvents { panel.ignoresMouseEvents = true }
     }
 }
 

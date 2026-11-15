@@ -12,7 +12,7 @@ It is a **developer cockpit**. When the owner switches to another window, the no
 The owner writes TS/Node, C#, and Swift and uses several AI coding agents every day.
 
 ## Non-negotiable quality bar
-- **It must feel native, like Apple built it.** Use one black shape that morphs between states. No cards inside cards, no gradients-for-the-sake-of-it, no emoji, no placeholder "lorem" UI, no generic AI dashboard look.
+- **It must feel native, like Apple built it.** Use one black shape that morphs between states, with single-level Control Center-style Bento containers (`white.opacity(0.06...0.08)` rounded tiles) for clean visual grouping and easy click targets. No deep nested cards, no gradients-for-the-sake-of-it, no emoji, no placeholder "lorem" UI, no generic AI dashboard look.
 - On a hardware notch the collapsed island is **exactly** the notch size, so it is invisible until something happens. Nothing is ever drawn under the camera area: content goes in the "ears" or below the notch height.
 - Motion: one spring, `.spring(response: 0.42, dampingFraction: 0.8)`. Content fades in **after** the shape starts growing (short delay) and fades out **before** it shrinks. Text must never reflow mid-animation.
 - Type: SF Pro / SF Mono (for commands, ports, and paths). Use SF Symbols only. Colors are white at various opacities plus one semantic tint per state (green ok, red fail, orange waiting, blue info).
@@ -55,3 +55,4 @@ In a restricted sandbox, SwiftPM may fail writing the clang module cache. Rerun 
 - Do one roadmap item at a time. Write tests first for pure logic. Meet the item's Gate, then tick it in `docs/ROADMAP.md` and append a line to the Changelog there.
 - Keep `swift build` warning-free under Swift 6 strict concurrency. Don't use `@unchecked Sendable` or `nonisolated(unsafe)` unless you add a comment that justifies it.
 - If you change an architecture rule, update this file in the same change.
+
