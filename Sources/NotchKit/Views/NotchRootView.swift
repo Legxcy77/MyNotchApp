@@ -63,7 +63,11 @@ public struct NotchRootView: View {
                 ExpandedView(clearance: geometry.cameraClearance)
                     .transition(.islandContent)
             case .toast(let toast):
-                ToastView(toast: toast, clearance: geometry.cameraClearance)
+                ToastView(
+                    toast: toast,
+                    clearance: geometry.cameraClearance,
+                    onTap: toast.action != nil ? { store.activate(toast) } : nil
+                )
                     .id(toast.id) // swap content between queued toasts without morphing text
                     .transition(.islandContent)
             case .fileDrop:

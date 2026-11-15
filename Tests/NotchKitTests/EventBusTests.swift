@@ -62,7 +62,7 @@ import Testing
 
     @Test func toastEndpointMapsFieldsAndTintAliases() {
         let router = EventBusRouter(token: token)
-        let json = #"{"title":"Deployed","subtitle":"prod","symbol":"checkmark","tint":"ok","priority":"high","ttl":5,"key":"dep"}"#
+        let json = #"{"title":"Deployed","subtitle":"prod","symbol":"checkmark","tint":"ok","priority":"high","ttl":5,"key":"dep","bundleId":"com.apple.Terminal"}"#
         let res = router.handle(makeRequest(path: "/toast", json: json))
         #expect(res.response.statusCode == 200)
         guard case .postToast(let toast) = res.action else {
@@ -76,6 +76,7 @@ import Testing
         #expect(toast.priority == .high)
         #expect(toast.duration == .seconds(5))
         #expect(toast.key == "dep")
+        #expect(toast.action == .activateApp(bundleID: "com.apple.Terminal"))
     }
 
     @Test func progressUpdatesInPlaceAndCompletesAtOne() {
@@ -123,3 +124,4 @@ import Testing
         #expect(router.handle(makeRequest(path: "/nope", json: "{}")).response.statusCode == 404)
     }
 }
+

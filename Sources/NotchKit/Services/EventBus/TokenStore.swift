@@ -34,3 +34,4 @@ public enum TokenStore {
         return bytes.map { String(format: "%02x", $0) }.joined()
     }
 }
+

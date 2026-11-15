@@ -35,28 +35,29 @@ case "$cmd" in
     echo
     ;;
   toast)
-    title="${1:?usage: notch toast <title> [--subtitle S] [--tint ok|fail|warn|info|neutral] [--symbol S] [--priority low|normal|high|critical] [--ttl SEC] [--key K]}"
+    title="${1:?usage: notch toast <title> [--subtitle S] [--tint ok|fail|warn|info|neutral] [--symbol S] [--priority low|normal|high|critical] [--ttl SEC] [--key K] [--bundle-id ID]}"
     shift
-    subtitle="" tint="" symbol="" priority="" ttl="" key=""
+    subtitle="" tint="" symbol="" priority="" ttl="" key="" bundle_id=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
-        --subtitle) subtitle="$2"; shift 2 ;;
-        --tint)     tint="$2"; shift 2 ;;
-        --symbol)   symbol="$2"; shift 2 ;;
-        --priority) priority="$2"; shift 2 ;;
-        --ttl)      ttl="$2"; shift 2 ;;
-        --key)      key="$2"; shift 2 ;;
+        --subtitle)  subtitle="$2"; shift 2 ;;
+        --tint)      tint="$2"; shift 2 ;;
+        --symbol)    symbol="$2"; shift 2 ;;
+        --priority)  priority="$2"; shift 2 ;;
+        --ttl)       ttl="$2"; shift 2 ;;
+        --key)       key="$2"; shift 2 ;;
+        --bundle-id) bundle_id="$2"; shift 2 ;;
         *) echo "unknown flag: $1" >&2; exit 2 ;;
       esac
     done
     payload=$(python3 -c '
 import json, sys
 d = {"title": sys.argv[1]}
-for k, v in zip(["subtitle","tint","symbol","priority","key"], sys.argv[2:7]):
+for k, v in zip(["subtitle","tint","symbol","priority","key","bundleId"], sys.argv[2:8]):
     if v: d[k] = v
-if sys.argv[7]: d["ttl"] = float(sys.argv[7])
+if sys.argv[8]: d["ttl"] = float(sys.argv[8])
 print(json.dumps(d))
-' "$title" "$subtitle" "$tint" "$symbol" "$priority" "$key" "$ttl")
+' "$title" "$subtitle" "$tint" "$symbol" "$priority" "$key" "$bundle_id" "$ttl")
     post_json "/toast" "$payload"
     ;;
   progress)
@@ -92,3 +93,4 @@ print(json.dumps(d))
     exit 2
     ;;
 esac
+

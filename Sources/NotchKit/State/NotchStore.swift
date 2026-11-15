@@ -12,6 +12,7 @@ public final class NotchStore {
     )
 
     @ObservationIgnored public var hoverExitDelay: Duration = .milliseconds(180)
+    @ObservationIgnored public var onAction: (@MainActor (Toast.Action) -> Void)?
     @ObservationIgnored private var expiryTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var hoverExitTask: Task<Void, Never>?
 
@@ -25,6 +26,12 @@ public final class NotchStore {
     }
 
     public func post(_ toast: Toast) { send(.postToast(toast)) }
+
+    public func activate(_ toast: Toast) {
+        guard let action = toast.action else { return }
+        onAction?(action)
+        send(.dismissToast)
+    }
 
     /// Debounced on exit so brushing the edge doesn't make the island flicker.
     public func setHovering(_ hovering: Bool) {

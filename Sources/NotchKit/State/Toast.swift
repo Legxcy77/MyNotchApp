@@ -8,6 +8,10 @@ public struct Toast: Equatable, Sendable, Identifiable {
         public static func < (a: Self, b: Self) -> Bool { a.rawValue < b.rawValue }
     }
 
+    public enum Action: Equatable, Sendable, Codable {
+        case activateApp(bundleID: String)
+    }
+
     public let id: UUID
     /// Toasts sharing a key replace each other in place (progress updates, repeated alerts).
     public var key: String?
@@ -17,10 +21,11 @@ public struct Toast: Equatable, Sendable, Identifiable {
     public var tint: Tint
     public var priority: Priority
     public var duration: Duration
+    public var action: Action?
 
     public init(id: UUID = UUID(), key: String? = nil, title: String, subtitle: String? = nil,
                 symbol: String = "bell.fill", tint: Tint = .neutral, priority: Priority = .normal,
-                duration: Duration = .seconds(3)) {
+                duration: Duration = .seconds(3), action: Action? = nil) {
         self.id = id
         self.key = key
         self.title = title
@@ -29,6 +34,7 @@ public struct Toast: Equatable, Sendable, Identifiable {
         self.tint = tint
         self.priority = priority
         self.duration = duration
+        self.action = action
     }
 }
 

@@ -84,7 +84,8 @@ public struct EventBusRouter: Sendable {
             symbol: payload.symbol ?? "bell.fill",
             tint: Self.parseTint(payload.tint),
             priority: Self.parsePriority(payload.priority),
-            duration: .seconds(payload.ttl ?? 3.0)
+            duration: .seconds(payload.ttl ?? 3.0),
+            action: payload.bundleId.flatMap { $0.isEmpty ? nil : .activateApp(bundleID: $0) }
         )
         return EventBusResult(
             response: HTTPResponse(statusCode: 200, reason: "OK", json: #"{"ok":true}"#),
@@ -168,6 +169,7 @@ private struct ToastPayload: Decodable {
     var priority: String?
     var ttl: Double?
     var key: String?
+    var bundleId: String?
 }
 
 private struct ProgressPayload: Decodable {
@@ -184,3 +186,4 @@ private struct ActivityPayload: Decodable {
     var title: String?
     var cwd: String?
 }
+

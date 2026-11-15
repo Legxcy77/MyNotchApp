@@ -23,6 +23,16 @@ final class AppCoordinator {
     private var eventBus: EventBusServer?
 
     init() {
+        store.onAction = { action in
+            switch action {
+            case .activateApp(let bundleID):
+                if let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first {
+                    app.activate()
+                } else if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+                    NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+                }
+            }
+        }
         window = NotchWindowController(store: store)
         statusBar = StatusBarController(store: store, window: window, launchAtLogin: launchAtLogin)
         startEventBus()

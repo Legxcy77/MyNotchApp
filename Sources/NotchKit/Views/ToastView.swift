@@ -3,6 +3,7 @@ import SwiftUI
 struct ToastView: View {
     let toast: Toast
     let clearance: CGFloat
+    var onTap: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -28,10 +29,20 @@ struct ToastView: View {
             .truncationMode(.middle)
 
             Spacer(minLength: 0)
+
+            if onTap != nil {
+                Image(systemName: "arrow.up.forward")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.4))
+            }
         }
         .padding(.horizontal, 14)
         .padding(.top, clearance)
         .frame(maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onTap?()
+        }
     }
 }
 

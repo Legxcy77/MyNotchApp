@@ -118,5 +118,17 @@ private func toast(_ title: String, key: String? = nil, priority: Toast.Priority
         try await Task.sleep(for: .milliseconds(150))
         #expect(!store.state.isHovering)
     }
+
+    @Test func activateToastRunsActionAndDismisses() {
+        let store = NotchStore()
+        var activated: Toast.Action?
+        store.onAction = { activated = $0 }
+        let t = Toast(title: "Done", action: .activateApp(bundleID: "com.apple.Terminal"))
+        store.post(t)
+        #expect(store.state.activeToast == t)
+        store.activate(t)
+        #expect(activated == .activateApp(bundleID: "com.apple.Terminal"))
+        #expect(store.state.activeToast == nil)
+    }
 }
 
