@@ -471,6 +471,22 @@ public struct LockScreenView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                } else {
+                    HStack(spacing: 7) {
+                        Image(systemName: "faceid")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.6))
+                        Text("ยังไม่ได้ลงทะเบียนใบหน้า (Menu → Setup Face Unlock…)")
+                            .font(.system(size: 11.5, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.72))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.18), lineWidth: 0.75)
+                    )
                 }
 
                 Button(action: onAuthenticateWithSystem) {
