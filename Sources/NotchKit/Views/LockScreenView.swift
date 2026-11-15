@@ -432,17 +432,39 @@ public struct LockScreenView: View {
 
         return VStack(spacing: 10) {
             ZStack {
+                if faceAuth.hasEnrolledFace {
+                    FaceScanSpinnerRing(
+                        isVerifying: faceAuth.mode == .verifying,
+                        isVerified: faceAuth.mode == .verified,
+                        isAwaitingBlink: faceAuth.verifyMessage.contains("กระพริบตา"),
+                        lineWidth: 2.5
+                    )
+                    .frame(width: 58, height: 58)
+                }
+
                 Circle()
-                    .fill(Color.white.opacity(0.22))
+                    .fill(faceAuth.mode == .verified ? Color.green.opacity(0.25) : Color.white.opacity(0.22))
                     .frame(width: 46, height: 46)
                     .overlay(
                         Circle()
-                            .stroke(Color.white.opacity(0.25), lineWidth: 0.75)
+                            .stroke(
+                                faceAuth.mode == .verified ? Color.green.opacity(0.75) : Color.white.opacity(0.25),
+                                lineWidth: 0.75
+                            )
                     )
-                Text(initial.isEmpty ? "U" : initial)
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(.white)
+
+                if faceAuth.mode == .verified {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(.green)
+                        .transition(.scale.combined(with: .opacity))
+                } else {
+                    Text(initial.isEmpty ? "U" : initial)
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(.white)
+                }
             }
+            .animation(.spring(response: 0.35, dampingFraction: 0.75), value: faceAuth.mode)
 
             Text(userName)
                 .font(.system(size: 13.5, weight: .medium))
@@ -451,10 +473,20 @@ public struct LockScreenView: View {
             HStack(spacing: 10) {
                 if faceAuth.hasEnrolledFace {
                     Button(action: onRetryFaceScan) {
-                        HStack(spacing: 7) {
-                            Image(systemName: faceAuth.mode == .verified ? "checkmark.circle.fill" : "faceid")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(faceAuth.mode == .verified ? Color.green : Color.white.opacity(0.9))
+                        HStack(spacing: 8) {
+                            ZStack {
+                                FaceScanSpinnerRing(
+                                    isVerifying: faceAuth.mode == .verifying,
+                                    isVerified: faceAuth.mode == .verified,
+                                    isAwaitingBlink: faceAuth.verifyMessage.contains("กระพริบตา"),
+                                    lineWidth: 1.8
+                                )
+                                .frame(width: 20, height: 20)
+
+                                Image(systemName: faceAuth.mode == .verified ? "checkmark" : "faceid")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(faceAuth.mode == .verified ? Color.green : Color.white.opacity(0.9))
+                            }
                             Text(faceAuth.mode == .verified ? "ปลดล็อกสำเร็จ" : faceAuth.verifyMessage)
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(.white.opacity(0.88))
@@ -515,6 +547,43 @@ public struct LockScreenView: View {
         let m = total / 60
         let s = total % 60
         return String(format: "%d:%02d", m, s)
+    }
+}
+
+private struct FaceScanSpinnerRing: View {
+    let isVerifying: Bool
+    let isVerified: Bool
+    let isAwaitingBlink: Bool
+    let lineWidth: CGFloat
+
+    @State private var rotation: Double = 0
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.white.opacity(0.14), lineWidth: lineWidth)
+
+            if isVerified {
+                Circle()
+                    .stroke(Color.green, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    .transition(.opacity)
+            } else if isVerifying {
+                Circle()
+                    .trim(from: 0.0, to: 0.34)
+                    .stroke(
+                        isAwaitingBlink ? Color.green.opacity(0.95) : Color.white.opacity(0.92),
+                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(rotation))
+                    .onAppear {
+                        rotation = 0
+                        withAnimation(.linear(duration: 0.95).repeatForever(autoreverses: false)) {
+                            rotation = 360
+                        }
+                    }
+            }
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isVerified)
     }
 }
 
