@@ -10,6 +10,7 @@ public struct Toast: Equatable, Sendable, Identifiable {
 
     public enum Action: Equatable, Sendable, Codable {
         case activateApp(bundleID: String)
+        case openURL(URL)
     }
 
     public let id: UUID

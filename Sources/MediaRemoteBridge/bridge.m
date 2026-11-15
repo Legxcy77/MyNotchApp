@@ -105,3 +105,4 @@ void mr_stream(void) {
 void mr_cmd_toggle(void) { @autoreleasepool { loadMR(); if (sendCommandFn) sendCommandFn(2, nil); } }
 void mr_cmd_next(void)   { @autoreleasepool { loadMR(); if (sendCommandFn) sendCommandFn(4, nil); } }
 void mr_cmd_prev(void)   { @autoreleasepool { loadMR(); if (sendCommandFn) sendCommandFn(5, nil); } }
+

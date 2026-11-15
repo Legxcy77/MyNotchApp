@@ -41,6 +41,7 @@ public struct NotchState: Equatable, Sendable {
     public var runHistory: [RunRecord] = []
     public var nowPlaying: NowPlayingTrack?
     public var lyrics: LRCDocument?
+    public var nextMeeting: UpcomingMeeting?
 
     public init() {}
 
@@ -60,8 +61,13 @@ public struct NotchState: Equatable, Sendable {
         nowPlaying?.isPlaying == true
     }
 
+    public var hasUrgentMeeting: Bool {
+        guard let nextMeeting else { return false }
+        return MeetingDetector.isWithinCountdownWindow(nextMeeting)
+    }
+
     public var showsEars: Bool {
-        hasActiveAgents || hasActiveMedia
+        hasActiveAgents || hasActiveMedia || hasUrgentMeeting
     }
 
     /// Derived, never stored, so impossible states can't exist.
@@ -103,6 +109,7 @@ public enum NotchEvent: Sendable, Equatable {
     case setExpandedTab(ExpandedTab)
     case nowPlayingUpdated(NowPlayingTrack?)
     case lyricsUpdated(LRCDocument?)
+    case nextMeetingUpdated(UpcomingMeeting?)
 }
 
 public enum NotchEffect: Sendable, Equatable {
@@ -199,6 +206,9 @@ public enum NotchReducer {
             return []
         case .lyricsUpdated(let doc):
             s.lyrics = doc
+            return []
+        case .nextMeetingUpdated(let meeting):
+            s.nextMeeting = meeting
             return []
         }
     }

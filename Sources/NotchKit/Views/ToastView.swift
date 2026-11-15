@@ -91,6 +91,32 @@ struct CollapsedEarsView: View {
     }
 }
 
+struct MeetingEarsView: View {
+    let notchWidth: CGFloat
+    let meeting: UpcomingMeeting
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            HStack(spacing: 0) {
+                Image(systemName: "video.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Toast.Tint.waiting.color)
+                    .frame(width: IslandLayout.earWidth)
+
+                Spacer()
+                    .frame(width: max(0, notchWidth))
+
+                Text(MeetingDetector.countdownText(until: meeting.startDate, now: context.date))
+                    .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                    .monospacedDigit()
+                    .foregroundStyle(Toast.Tint.waiting.color)
+                    .frame(width: IslandLayout.earWidth)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
 struct ExpandedView: View {
     let clearance: CGFloat
     let expandedTab: ExpandedTab
@@ -101,11 +127,13 @@ struct ExpandedView: View {
     let runHistory: [RunRecord]
     let nowPlaying: NowPlayingTrack?
     let lyrics: LRCDocument?
+    let nextMeeting: UpcomingMeeting?
     let onSelectTab: (ExpandedTab) -> Void
     let onClearFinished: () -> Void
     let onClearRunHistory: () -> Void
     let onServerAction: (NotchStore.DevServerAction) -> Void
     let onMediaCommand: (MediaCommand) -> Void
+    let onJoinMeeting: (URL) -> Void
     let onRemoveFile: (URL) -> Void
     let onClearFiles: () -> Void
 
@@ -177,11 +205,38 @@ struct ExpandedView: View {
                         }
                     }
                 }
-            } else if sessions.isEmpty && servers.isEmpty && stagedFiles.isEmpty && gitStatus == nil {
+            } else if sessions.isEmpty && servers.isEmpty && stagedFiles.isEmpty && gitStatus == nil && nextMeeting == nil {
                 Text("All quiet. Builds, agents and servers will show up here.")
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.4))
             } else {
+                if let meeting = nextMeeting {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        HStack(spacing: 8) {
+                            Image(systemName: "video.fill")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Toast.Tint.waiting.color)
+                            Text(meeting.title)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.9))
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            Text(MeetingDetector.countdownText(until: meeting.startDate, now: context.date))
+                                .font(.system(size: 11, design: .monospaced))
+                                .monospacedDigit()
+                                .foregroundStyle(.white.opacity(0.55))
+                            Button("Join") {
+                                onJoinMeeting(meeting.joinURL)
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2.5)
+                            .background(Toast.Tint.waiting.color, in: Capsule())
+                        }
+                    }
+                }
                 if let git = gitStatus {
                     HStack(spacing: 8) {
                         Image(systemName: "arrow.triangle.branch")

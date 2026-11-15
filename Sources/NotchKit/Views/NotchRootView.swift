@@ -68,6 +68,10 @@ public struct NotchRootView: View {
                         waitingCount: store.state.waitingAgentCount
                     )
                     .transition(.islandContent)
+                } else if let meeting = store.state.nextMeeting,
+                          MeetingDetector.isWithinCountdownWindow(meeting) {
+                    MeetingEarsView(notchWidth: earSpacerWidth, meeting: meeting)
+                        .transition(.islandContent)
                 } else if let track = store.state.nowPlaying, track.isPlaying {
                     MediaEarsView(notchWidth: earSpacerWidth, track: track)
                         .transition(.islandContent)
@@ -85,11 +89,13 @@ public struct NotchRootView: View {
                     runHistory: store.state.runHistory,
                     nowPlaying: store.state.nowPlaying,
                     lyrics: store.state.lyrics,
+                    nextMeeting: store.state.nextMeeting,
                     onSelectTab: { store.send(.setExpandedTab($0)) },
                     onClearFinished: { store.send(.clearFinishedAgents) },
                     onClearRunHistory: { store.send(.clearRunHistory) },
                     onServerAction: { store.perform($0) },
                     onMediaCommand: { store.performMedia($0) },
+                    onJoinMeeting: { NSWorkspace.shared.open($0) },
                     onRemoveFile: { store.send(.removeStagedFile($0)) },
                     onClearFiles: { store.send(.clearStagedFiles) }
                 )

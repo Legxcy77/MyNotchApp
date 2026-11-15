@@ -29,6 +29,8 @@ final class AppCoordinator {
     private var gitGlance: GitGlanceMonitor?
     private var logPin: LogPinMonitor?
     private var nowPlaying: NowPlayingService?
+    private var meetingMonitor: MeetingMonitor?
+    private var notifiedMeetingIDs: Set<String> = []
     private let lrclibClient = LRCLibClient()
     private let lyricsCache = LyricsCache()
     private var lastLyricsTrackKey: String?
@@ -44,6 +46,8 @@ final class AppCoordinator {
                 } else if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
                     NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
                 }
+            case .openURL(let url):
+                NSWorkspace.shared.open(url)
             }
         }
         window = NotchWindowController(store: store)
@@ -153,6 +157,32 @@ final class AppCoordinator {
         startGitGlance()
         startLogPin()
         startNowPlaying()
+        startMeetingMonitor()
+    }
+
+    private func startMeetingMonitor() {
+        let monitor = MeetingMonitor { [weak self] meeting in
+            guard let self else { return }
+            self.store.send(.nextMeetingUpdated(meeting))
+            if let meeting,
+               MeetingDetector.isWithinCountdownWindow(meeting),
+               !self.notifiedMeetingIDs.contains(meeting.id) {
+                self.notifiedMeetingIDs.insert(meeting.id)
+                let countdown = MeetingDetector.countdownText(until: meeting.startDate)
+                self.store.post(Toast(
+                    key: "meeting:\(meeting.id)",
+                    title: meeting.title,
+                    subtitle: countdown == "NOW" ? "Meeting started · Click to join" : "Starts in \(countdown) · Click to join",
+                    symbol: "video.fill",
+                    tint: .waiting,
+                    priority: .high,
+                    duration: .seconds(6),
+                    action: .openURL(meeting.joinURL)
+                ))
+            }
+        }
+        monitor.start()
+        meetingMonitor = monitor
     }
 
     private func startNowPlaying() {
