@@ -15,7 +15,9 @@ final class NotchPanel: NSPanel {
         hidesOnDeactivate = false
         acceptsMouseMovedEvents = true
         ignoresMouseEvents = true // the controller enables it only over the island
-        level = .screenSaver
+        // Above the menu bar / notch (25), but below the system drag-image window (~500)
+        // so dragged files remain visible on top of the island.
+        level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
     }
 

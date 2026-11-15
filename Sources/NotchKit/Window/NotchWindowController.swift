@@ -43,10 +43,13 @@ final class NotchWindowController {
             pinnedDisplayID = CGDirectDisplayID(saved)
         }
 
+        let container = DropTargetView(frame: NSRect(origin: .zero, size: IslandLayout.panelSize), store: store)
         let host = NSHostingView(rootView: NotchRootView(store: store))
         host.sizingOptions = [] // never let SwiftUI resize the panel
-        host.frame = NSRect(origin: .zero, size: IslandLayout.panelSize)
-        panel.contentView = host
+        host.frame = container.bounds
+        host.autoresizingMask = [.width, .height]
+        container.addSubview(host)
+        panel.contentView = container
 
         reposition()
         panel.orderFrontRegardless()
@@ -110,5 +113,49 @@ final class NotchWindowController {
         let inside = rect.contains(NSEvent.mouseLocation)
         if panel.ignoresMouseEvents == inside { panel.ignoresMouseEvents = !inside }
         store.setHovering(inside)
+    }
+}
+
+@MainActor
+private final class DropTargetView: NSView {
+    private let store: NotchStore
+
+    init(frame: NSRect, store: NotchStore) {
+        self.store = store
+        super.init(frame: frame)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    private func fileURLs(from sender: NSDraggingInfo) -> [URL] {
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
+        return (sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: options) as? [URL]) ?? []
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard !fileURLs(from: sender).isEmpty else { return [] }
+        store.send(.dragChanged(true))
+        return .copy
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        fileURLs(from: sender).isEmpty ? [] : .copy
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        store.send(.dragChanged(false))
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        store.send(.dragChanged(false))
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let urls = fileURLs(from: sender)
+        store.send(.dragChanged(false))
+        guard !urls.isEmpty else { return false }
+        store.send(.stageFiles(urls))
+        return true
     }
 }

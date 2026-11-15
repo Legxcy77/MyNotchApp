@@ -208,7 +208,7 @@ private struct DevServerRow: View {
                 .fill(Toast.Tint.success.color)
                 .frame(width: 6, height: 6)
 
-            Text(":\(server.port)")
+            Text(":\(String(server.port))")
                 .font(.system(size: 12, weight: .semibold, design: .monospaced))
                 .foregroundStyle(.white)
 
