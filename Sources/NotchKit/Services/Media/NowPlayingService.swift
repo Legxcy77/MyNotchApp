@@ -310,6 +310,7 @@ final class MediaRemoteNowPlayingProvider: NowPlayingProvider {
         let duration: Double?
         let elapsed: Double?
         let playbackRate: Double?
+        let timestamp: Double?
         let artworkBase64: String?
     }
 
@@ -418,6 +419,7 @@ final class MediaRemoteNowPlayingProvider: NowPlayingProvider {
         }
         guard let title = snap.title, !title.isEmpty else { return }
         let artworkData = snap.artworkBase64.flatMap { $0.isEmpty ? nil : Data(base64Encoded: $0) }
+        let anchorDate = (snap.timestamp ?? 0) > 0 ? Date(timeIntervalSince1970: snap.timestamp!) : .now
         let track = NowPlayingTrack(
             title: title,
             artist: snap.artist ?? "",
@@ -426,7 +428,7 @@ final class MediaRemoteNowPlayingProvider: NowPlayingProvider {
             isPlaying: (snap.playbackRate ?? 0) > 0,
             duration: snap.duration ?? 0,
             anchorPosition: snap.elapsed ?? 0,
-            anchorDate: .now,
+            anchorDate: anchorDate,
             artworkData: artworkData
         )
         onChange?(track)

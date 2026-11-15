@@ -43,6 +43,9 @@ static void emitSnapshot(void) {
             ? [info[@"kMRMediaRemoteNowPlayingInfoElapsedTime"] doubleValue] : 0.0;
         double rate = [info[@"kMRMediaRemoteNowPlayingInfoPlaybackRate"] respondsToSelector:@selector(doubleValue)]
             ? [info[@"kMRMediaRemoteNowPlayingInfoPlaybackRate"] doubleValue] : 0.0;
+        NSDate *ts = [info[@"kMRMediaRemoteNowPlayingInfoTimestamp"] isKindOfClass:[NSDate class]]
+            ? info[@"kMRMediaRemoteNowPlayingInfoTimestamp"] : nil;
+        double timestamp = ts ? [ts timeIntervalSince1970] : 0.0;
         NSData *artData = [info[@"kMRMediaRemoteNowPlayingInfoArtworkData"] isKindOfClass:[NSData class]]
             ? info[@"kMRMediaRemoteNowPlayingInfoArtworkData"] : nil;
         NSString *artBase64 = artData ? [artData base64EncodedStringWithOptions:0] : @"";
@@ -56,6 +59,7 @@ static void emitSnapshot(void) {
                 @"duration": @(duration),
                 @"elapsed": @(elapsed),
                 @"playbackRate": @(rate),
+                @"timestamp": @(timestamp),
                 @"artworkBase64": artBase64
             };
             NSData *json = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];

@@ -259,7 +259,7 @@ struct MediaExpandedView: View {
     private func lyricsColumn(position: TimeInterval) -> some View {
         ZStack(alignment: .bottomTrailing) {
             if let lyrics, !lyrics.lines.isEmpty {
-                let activeIndex = lyrics.currentLineIndex(at: position)
+                let activeIndex = lyrics.currentLineIndex(at: position + 0.25)
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 6) {
@@ -278,7 +278,7 @@ struct MediaExpandedView: View {
                     }
                     .onChange(of: activeIndex) { _, newValue in
                         guard let newValue else { return }
-                        withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
+                        withAnimation(.spring(response: 0.30, dampingFraction: 0.88)) {
                             proxy.scrollTo(newValue, anchor: .center)
                         }
                     }
