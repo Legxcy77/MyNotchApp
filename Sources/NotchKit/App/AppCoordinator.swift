@@ -30,6 +30,7 @@ final class AppCoordinator {
     private var logPin: LogPinMonitor?
     private var nowPlaying: NowPlayingService?
     private var meetingMonitor: MeetingMonitor?
+    private var githubMonitor: GitHubPulseMonitor?
     private var notifiedMeetingIDs: Set<String> = []
     private let lrclibClient = LRCLibClient()
     private let lyricsCache = LyricsCache()
@@ -162,6 +163,7 @@ final class AppCoordinator {
         startLogPin()
         startNowPlaying()
         startMeetingMonitor()
+        startGitHubPulse()
     }
 
     private func handleFocusChanged(_ session: FocusSession?) {
@@ -194,6 +196,26 @@ final class AppCoordinator {
                 duration: .seconds(6)
             ))
         }
+    }
+
+    private func startGitHubPulse() {
+        let monitor = GitHubPulseMonitor { [weak self] _, changes in
+            guard let self else { return }
+            for pr in changes {
+                self.store.post(Toast(
+                    key: "gh:\(pr.id)",
+                    title: pr.isReviewRequest ? "Review requested" : "PR #\(pr.number) updated",
+                    subtitle: "\(pr.repo) · \(pr.title)",
+                    symbol: "arrow.triangle.pull",
+                    tint: pr.checksState == .failing ? .failure : .info,
+                    priority: pr.isReviewRequest ? .high : .normal,
+                    duration: .seconds(5),
+                    action: .openURL(pr.url)
+                ))
+            }
+        }
+        monitor.start()
+        githubMonitor = monitor
     }
 
     private func startMeetingMonitor() {
