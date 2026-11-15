@@ -106,3 +106,4 @@ public final class LogPinMonitor: @unchecked Sendable {
         currentLabel = nil
     }
 }
+

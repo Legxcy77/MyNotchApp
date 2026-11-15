@@ -5,6 +5,7 @@ public enum NotchMode: Equatable, Sendable {
     case expanded
     case fileDrop
     case clipboard
+    case commandPalette
     case errorLens(title: String, log: String)
     case toast(Toast)
 }
@@ -18,6 +19,7 @@ public struct NotchState: Equatable, Sendable {
     public var isHovering = false
     public var isDragging = false
     public var isClipboardOpen = false
+    public var isCommandPaletteOpen = false
     public var activeError: ErrorLensPayload?
     public var activeToast: Toast?
     /// Sorted by priority (desc), FIFO within a priority.
@@ -27,6 +29,8 @@ public struct NotchState: Equatable, Sendable {
     public var stagedFiles: [URL] = []
     public var clipboard = ClipboardHistory()
     public var gitStatus: GitStatus?
+    public var activeRepoPath: String?
+    public var repoTasks: [RepoTask] = []
 
     public init() {}
 
@@ -46,6 +50,7 @@ public struct NotchState: Equatable, Sendable {
     public var mode: NotchMode {
         if isDragging { return .fileDrop }
         if isClipboardOpen { return .clipboard }
+        if isCommandPaletteOpen { return .commandPalette }
         if let activeError { return .errorLens(title: activeError.title, log: activeError.log) }
         if let activeToast { return .toast(activeToast) }
         if isHovering { return .expanded }
@@ -68,6 +73,10 @@ public enum NotchEvent: Sendable, Equatable {
     case clipboardRecorded(ClipboardItem.Content, at: Date)
     case toggleClipboard
     case setClipboardOpen(Bool)
+    case toggleCommandPalette
+    case setCommandPaletteOpen(Bool)
+    case setActiveRepoPath(String)
+    case repoTasksUpdated([RepoTask])
     case openErrorLens(title: String, log: String)
     case closeErrorLens
     case gitStatusUpdated(GitStatus?)
@@ -131,6 +140,18 @@ public enum NotchReducer {
             return []
         case .setClipboardOpen(let open):
             s.isClipboardOpen = open
+            return []
+        case .toggleCommandPalette:
+            s.isCommandPaletteOpen.toggle()
+            return []
+        case .setCommandPaletteOpen(let open):
+            s.isCommandPaletteOpen = open
+            return []
+        case .setActiveRepoPath(let path):
+            s.activeRepoPath = path
+            return []
+        case .repoTasksUpdated(let tasks):
+            s.repoTasks = tasks
             return []
         case .openErrorLens(let title, let log):
             s.activeError = ErrorLensPayload(title: title, log: log)

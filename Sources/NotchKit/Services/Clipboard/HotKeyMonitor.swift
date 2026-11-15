@@ -3,36 +3,70 @@ import Foundation
 
 @MainActor
 public final class HotKeyMonitor {
-    private var hotKeyRef: EventHotKeyRef?
+    private var hotKeyRefs: [EventHotKeyRef] = []
     private var eventHandlerRef: EventHandlerRef?
-    private let onTrigger: @MainActor () -> Void
+    private var handlers: [UInt32: @MainActor () -> Void] = [:]
+    private var nextID: UInt32 = 1
 
-    public init(onTrigger: @escaping @MainActor () -> Void) {
-        self.onTrigger = onTrigger
-    }
+    public init() {}
 
     isolated deinit {
-        if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
+        for ref in hotKeyRefs { UnregisterEventHotKey(ref) }
         if let eventHandlerRef { RemoveEventHandler(eventHandlerRef) }
     }
 
-    /// Registers ⌥⌘V globally via Carbon RegisterEventHotKey.
-    public func registerOptionCommandV() {
-        guard hotKeyRef == nil else { return }
+    public func register(keyCode: UInt32, modifiers: UInt32, handler: @escaping @MainActor () -> Void) {
+        ensureEventHandlerInstalled()
+        let id = nextID
+        nextID += 1
+        handlers[id] = handler
 
+        var ref: EventHotKeyRef?
+        let hotKeyID = EventHotKeyID(signature: 0x4E54_4348, id: id) // 'NTCH'
+        RegisterEventHotKey(
+            keyCode,
+            modifiers,
+            hotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &ref
+        )
+        if let ref { hotKeyRefs.append(ref) }
+    }
+
+    public func registerOptionCommandV(_ handler: @escaping @MainActor () -> Void) {
+        register(keyCode: UInt32(kVK_ANSI_V), modifiers: UInt32(optionKey | cmdKey), handler: handler)
+    }
+
+    public func registerOptionSpace(_ handler: @escaping @MainActor () -> Void) {
+        register(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey), handler: handler)
+    }
+
+    private func ensureEventHandlerInstalled() {
+        guard eventHandlerRef == nil else { return }
         var eventType = EventTypeSpec(
             eventClass: OSType(kEventClassKeyboard),
             eventKind: UInt32(kEventHotKeyPressed)
         )
-
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
         InstallEventHandler(
             GetApplicationEventTarget(),
-            { _, _, userData in
-                guard let userData else { return noErr }
+            { _, event, userData in
+                guard let userData, let event else { return noErr }
+                var hotKeyID = EventHotKeyID()
+                let status = GetEventParameter(
+                    event,
+                    EventParamName(kEventParamDirectObject),
+                    EventParamType(typeEventHotKeyID),
+                    nil,
+                    MemoryLayout<EventHotKeyID>.size,
+                    nil,
+                    &hotKeyID
+                )
+                guard status == noErr else { return noErr }
                 let monitor = Unmanaged<HotKeyMonitor>.fromOpaque(userData).takeUnretainedValue()
                 MainActor.assumeIsolated {
-                    monitor.onTrigger()
+                    monitor.handlers[hotKeyID.id]?()
                 }
                 return noErr
             },
@@ -40,16 +74,6 @@ public final class HotKeyMonitor {
             &eventType,
             selfPtr,
             &eventHandlerRef
-        )
-
-        let hotKeyID = EventHotKeyID(signature: 0x4E54_4348, id: 1) // 'NTCH'
-        RegisterEventHotKey(
-            UInt32(kVK_ANSI_V),
-            UInt32(optionKey | cmdKey),
-            hotKeyID,
-            GetApplicationEventTarget(),
-            0,
-            &hotKeyRef
         )
     }
 }

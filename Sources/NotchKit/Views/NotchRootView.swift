@@ -124,6 +124,15 @@ public struct NotchRootView: View {
                     onClose: { store.send(.setClipboardOpen(false)) }
                 )
                 .transition(.islandContent)
+            case .commandPalette:
+                CommandPaletteView(
+                    tasks: store.state.repoTasks,
+                    repoName: store.state.activeRepoPath.map { ($0 as NSString).lastPathComponent },
+                    clearance: geometry.cameraClearance,
+                    onRun: { store.runTask($0) },
+                    onClose: { store.send(.setCommandPaletteOpen(false)) }
+                )
+                .transition(.islandContent)
             }
         }
     }

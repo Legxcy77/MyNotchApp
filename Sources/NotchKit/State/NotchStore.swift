@@ -28,6 +28,7 @@ public final class NotchStore {
     @ObservationIgnored public var onPasteClipboard: (@MainActor (ClipboardItem) -> Void)?
     @ObservationIgnored public var onCopyText: (@MainActor (String) -> Void)?
     @ObservationIgnored public var onErrorAction: (@MainActor (ErrorLensAction) -> Void)?
+    @ObservationIgnored public var onRunTask: (@MainActor (RepoTask) -> Void)?
     @ObservationIgnored public var onModeChanged: (@MainActor (NotchMode) -> Void)?
     @ObservationIgnored private var expiryTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var hoverExitTask: Task<Void, Never>?
@@ -68,6 +69,10 @@ public final class NotchStore {
 
     public func performErrorAction(_ action: ErrorLensAction) {
         onErrorAction?(action)
+    }
+
+    public func runTask(_ task: RepoTask) {
+        onRunTask?(task)
     }
 
     public func activate(_ toast: Toast) {

@@ -121,7 +121,7 @@ final class NotchWindowController {
 
     private func updateHover() {
         guard isVisible else { return }
-        if store.mode == .clipboard {
+        if store.mode == .clipboard || store.mode == .commandPalette {
             if panel.ignoresMouseEvents { panel.ignoresMouseEvents = false }
             return
         }

@@ -51,7 +51,19 @@ final class AppCoordinator {
         store.onModeChanged = { [weak self] mode in
             guard let self else { return }
             self.devServers?.setActive(mode == .expanded || self.isMenuOpen)
-            self.window.setClipboardFocus(mode == .clipboard)
+            self.window.setClipboardFocus(mode == .clipboard || mode == .commandPalette)
+            if mode == .commandPalette {
+                let repo = self.resolvedRepoPath()
+                self.store.send(.setActiveRepoPath(repo))
+                let tasks = RepoTaskScanner.scan(repoPath: repo)
+                self.store.send(.repoTasksUpdated(tasks))
+            }
+        }
+        store.onRunTask = { [weak self] task in
+            guard let self else { return }
+            self.store.send(.setCommandPaletteOpen(false))
+            let repo = self.resolvedRepoPath()
+            self.runTaskInBackground(task, repoPath: repo)
         }
         store.onPasteClipboard = { [weak self] item in
             guard let self else { return }
@@ -158,11 +170,82 @@ final class AppCoordinator {
         monitor.start()
         clipboard = monitor
 
-        let hk = HotKeyMonitor { [weak store] in
+        let hk = HotKeyMonitor()
+        hk.registerOptionCommandV { [weak store] in
             store?.send(.toggleClipboard)
         }
-        hk.registerOptionCommandV()
+        hk.registerOptionSpace { [weak store] in
+            store?.send(.toggleCommandPalette)
+        }
         hotKey = hk
+    }
+
+    private func resolvedRepoPath() -> String {
+        store.state.activeRepoPath
+            ?? store.state.gitStatus?.repoRoot
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("MyNotchApp").path
+    }
+
+    private func runTaskInBackground(_ task: RepoTask, repoPath: String) {
+        store.post(Toast(
+            key: "task:\(task.id)",
+            title: "Running \(task.command)",
+            subtitle: (repoPath as NSString).lastPathComponent,
+            symbol: "terminal",
+            tint: .info,
+            duration: .seconds(15)
+        ))
+
+        Task { [weak store] in
+            let start = ContinuousClock.now
+            let result = await Task.detached(priority: .userInitiated) {
+                Self.execCommand(task.command, in: repoPath)
+            }.value
+            let elapsed = ContinuousClock.now - start
+            let secs = Int(elapsed.components.seconds)
+
+            if result.exitCode == 0 {
+                store?.post(Toast(
+                    key: "task:\(task.id)",
+                    title: "Command finished",
+                    subtitle: "\(task.command) · \(secs)s",
+                    symbol: "checkmark",
+                    tint: .success,
+                    duration: .seconds(4)
+                ))
+            } else {
+                store?.post(Toast(
+                    key: "task:\(task.id)",
+                    title: "Command failed (exit \(result.exitCode))",
+                    subtitle: "\(task.command) · \(secs)s",
+                    symbol: "xmark",
+                    tint: .failure,
+                    priority: .high,
+                    duration: .seconds(8),
+                    errorLog: result.tailOutput.isEmpty ? nil : result.tailOutput
+                ))
+            }
+        }
+    }
+
+    private nonisolated static func execCommand(_ command: String, in directory: String) -> (exitCode: Int32, tailOutput: String) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        p.arguments = ["-lc", command]
+        p.currentDirectoryURL = URL(fileURLWithPath: directory, isDirectory: true)
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = pipe
+        do {
+            try p.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            p.waitUntilExit()
+            let text = String(data: data, encoding: .utf8) ?? ""
+            let tail = text.split(whereSeparator: \.isNewline).suffix(30).joined(separator: "\n")
+            return (p.terminationStatus, tail)
+        } catch {
+            return (1, error.localizedDescription)
+        }
     }
 
     private func startScreenshotWatcher() {
@@ -193,6 +276,7 @@ final class AppCoordinator {
                 case .activity(let ev):
                     store.send(.recordActivity(ev, at: .now))
                     if let cwd = ev.cwd, !cwd.isEmpty {
+                        store.send(.setActiveRepoPath(cwd))
                         self.gitGlance?.watch(cwd: cwd)
                     }
                 case .pinLogFile(let path, let pattern):
