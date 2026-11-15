@@ -202,7 +202,17 @@ final class AppCoordinator {
                 Self.execCommand(task.command, in: repoPath)
             }.value
             let elapsed = ContinuousClock.now - start
+            let durationSeconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
             let secs = Int(elapsed.components.seconds)
+
+            store?.send(.recordRun(RunRecord(
+                kind: .command,
+                title: task.command,
+                cwd: repoPath,
+                exitCode: result.exitCode,
+                duration: durationSeconds,
+                finishedAt: .now
+            )))
 
             if result.exitCode == 0 {
                 store?.post(Toast(

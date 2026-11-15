@@ -93,11 +93,15 @@ struct CollapsedEarsView: View {
 
 struct ExpandedView: View {
     let clearance: CGFloat
+    let expandedTab: ExpandedTab
     let sessions: [AgentSession]
     let servers: [DevServer]
     let stagedFiles: [URL]
     let gitStatus: GitStatus?
+    let runHistory: [RunRecord]
+    let onSelectTab: (ExpandedTab) -> Void
     let onClearFinished: () -> Void
+    let onClearRunHistory: () -> Void
     let onServerAction: (NotchStore.DevServerAction) -> Void
     let onRemoveFile: (URL) -> Void
     let onClearFiles: () -> Void
@@ -109,16 +113,37 @@ struct ExpandedView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             TimelineView(.everyMinute) { context in
-                HStack(alignment: .firstTextBaseline) {
-                    Text(context.date, format: .dateTime.hour().minute())
-                        .font(.system(size: 32, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                    Text(context.date, format: .dateTime.weekday(.wide).day().month(.wide))
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.5))
+                HStack(alignment: .center, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(context.date, format: .dateTime.hour().minute())
+                            .font(.system(size: 30, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                        Text(context.date, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
                     Spacer()
-                    if hasFinished {
+                    HStack(spacing: 4) {
+                        ExpandedTabPill(
+                            title: "Overview",
+                            isSelected: expandedTab == .overview
+                        ) {
+                            onSelectTab(.overview)
+                        }
+                        ExpandedTabPill(
+                            title: runHistory.isEmpty ? "Timeline" : "Timeline (\(runHistory.count))",
+                            isSelected: expandedTab == .timeline
+                        ) {
+                            onSelectTab(.timeline)
+                        }
+                    }
+                    if expandedTab == .overview && hasFinished {
                         Button("Clear", action: onClearFinished)
+                            .buttonStyle(.plain)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.45))
+                    } else if expandedTab == .timeline && !runHistory.isEmpty {
+                        Button("Clear", action: onClearRunHistory)
                             .buttonStyle(.plain)
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.white.opacity(0.45))
@@ -127,7 +152,21 @@ struct ExpandedView: View {
                 .foregroundStyle(.white)
             }
 
-            if sessions.isEmpty && servers.isEmpty && stagedFiles.isEmpty && gitStatus == nil {
+            if expandedTab == .timeline {
+                if runHistory.isEmpty {
+                    Text("No completed commands or agent runs yet.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.4))
+                } else {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 5) {
+                            ForEach(runHistory) { record in
+                                RunTimelineRow(record: record)
+                            }
+                        }
+                    }
+                }
+            } else if sessions.isEmpty && servers.isEmpty && stagedFiles.isEmpty && gitStatus == nil {
                 Text("All quiet. Builds, agents and servers will show up here.")
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.4))
@@ -198,6 +237,72 @@ struct ExpandedView: View {
         .padding(.horizontal, 22)
         .padding(.top, clearance + 12)
         .padding(.bottom, 14)
+    }
+}
+
+private struct ExpandedTabPill: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(isSelected ? .white : .white.opacity(0.5))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(isSelected ? .white.opacity(0.16) : .clear, in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct RunTimelineRow: View {
+    let record: RunRecord
+
+    private var statusColor: Color {
+        record.succeeded ? Toast.Tint.success.color : Toast.Tint.failure.color
+    }
+
+    private var cwdName: String? {
+        guard let cwd = record.cwd, !cwd.isEmpty else { return nil }
+        let name = (cwd as NSString).lastPathComponent
+        return name.isEmpty ? cwd : name
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: record.succeeded ? "checkmark.circle.fill" : "xmark.circle.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(statusColor)
+            Image(systemName: record.kind == .command ? "terminal" : "cpu")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.45))
+                .frame(width: 12)
+            Text(record.title)
+                .font(.system(size: 11.5, weight: .medium, design: record.kind == .command ? .monospaced : .default))
+                .foregroundStyle(.white.opacity(0.9))
+                .lineLimit(1)
+                .truncationMode(.middle)
+            if let cwdName {
+                Text(cwdName)
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.42))
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Text(record.formattedDuration)
+                .font(.system(size: 10.5, design: .monospaced))
+                .monospacedDigit()
+                .foregroundStyle(.white.opacity(0.5))
+            Text("exit \(record.exitCode)")
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundStyle(statusColor.opacity(0.9))
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1.5)
+                .background(statusColor.opacity(0.14), in: Capsule())
+        }
     }
 }
 

@@ -15,6 +15,11 @@ public struct ErrorLensPayload: Equatable, Sendable {
     public var log: String
 }
 
+public enum ExpandedTab: String, Equatable, Sendable, CaseIterable {
+    case overview
+    case timeline
+}
+
 public struct NotchState: Equatable, Sendable {
     public var isHovering = false
     public var isDragging = false
@@ -31,6 +36,8 @@ public struct NotchState: Equatable, Sendable {
     public var gitStatus: GitStatus?
     public var activeRepoPath: String?
     public var repoTasks: [RepoTask] = []
+    public var expandedTab: ExpandedTab = .overview
+    public var runHistory: [RunRecord] = []
 
     public init() {}
 
@@ -80,6 +87,9 @@ public enum NotchEvent: Sendable, Equatable {
     case openErrorLens(title: String, log: String)
     case closeErrorLens
     case gitStatusUpdated(GitStatus?)
+    case recordRun(RunRecord)
+    case clearRunHistory
+    case setExpandedTab(ExpandedTab)
 }
 
 public enum NotchEffect: Sendable, Equatable {
@@ -162,13 +172,33 @@ public enum NotchReducer {
         case .gitStatusUpdated(let status):
             s.gitStatus = status
             return []
+        case .recordRun(let record):
+            appendRun(record, into: &s)
+            return []
+        case .clearRunHistory:
+            s.runHistory.removeAll()
+            return []
+        case .setExpandedTab(let tab):
+            s.expandedTab = tab
+            return []
         }
     }
 
     private static let maxAgentSessions = 12
+    private static let maxRunHistory = 30
+
+    private static func appendRun(_ record: RunRecord, into s: inout NotchState) {
+        s.runHistory.insert(record, at: 0)
+        if s.runHistory.count > maxRunHistory {
+            s.runHistory.removeLast(s.runHistory.count - maxRunHistory)
+        }
+    }
 
     private static func recordActivity(_ ev: ActivityEvent, at now: Date, into s: inout NotchState) -> [NotchEffect] {
         let key = AgentSession.Key(source: ev.source, session: ev.session)
+        let startedAt: Date
+        let resolvedTitle: String
+        let resolvedCwd: String?
         if let idx = s.agentSessions.firstIndex(where: { $0.id == key }) {
             let wasActive = s.agentSessions[idx].isActive
             s.agentSessions[idx].state = ev.state
@@ -178,6 +208,9 @@ public enum NotchReducer {
                 s.agentSessions[idx].startedAt = now
             }
             s.agentSessions[idx].updatedAt = now
+            startedAt = s.agentSessions[idx].startedAt
+            resolvedTitle = s.agentSessions[idx].title ?? ev.source
+            resolvedCwd = s.agentSessions[idx].cwd
         } else {
             s.agentSessions.append(AgentSession(
                 source: ev.source,
@@ -188,6 +221,20 @@ public enum NotchReducer {
                 startedAt: now,
                 updatedAt: now
             ))
+            startedAt = now
+            resolvedTitle = ev.title ?? ev.source
+            resolvedCwd = ev.cwd
+        }
+
+        if ev.state == .done || ev.state == .failed {
+            appendRun(RunRecord(
+                kind: .agent,
+                title: resolvedTitle,
+                cwd: resolvedCwd,
+                exitCode: ev.state == .done ? 0 : 1,
+                duration: max(0, now.timeIntervalSince(startedAt)),
+                finishedAt: now
+            ), into: &s)
         }
 
         s.agentSessions.sort { lhs, rhs in

@@ -120,3 +120,4 @@ struct CommandPaletteView: View {
         onRun(filtered[selectedIndex])
     }
 }
+

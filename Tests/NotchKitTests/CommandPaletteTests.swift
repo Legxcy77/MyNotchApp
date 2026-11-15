@@ -40,3 +40,4 @@ import Testing
         #expect(RepoTaskScanner.filter(tasks, query: "").count == 3)
     }
 }
+

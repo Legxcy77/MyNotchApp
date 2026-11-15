@@ -73,11 +73,15 @@ public struct NotchRootView: View {
             case .expanded:
                 ExpandedView(
                     clearance: geometry.cameraClearance,
+                    expandedTab: store.state.expandedTab,
                     sessions: store.state.agentSessions,
                     servers: store.state.devServers,
                     stagedFiles: store.state.stagedFiles,
                     gitStatus: store.state.gitStatus,
+                    runHistory: store.state.runHistory,
+                    onSelectTab: { store.send(.setExpandedTab($0)) },
                     onClearFinished: { store.send(.clearFinishedAgents) },
+                    onClearRunHistory: { store.send(.clearRunHistory) },
                     onServerAction: { store.perform($0) },
                     onRemoveFile: { store.send(.removeStagedFile($0)) },
                     onClearFiles: { store.send(.clearStagedFiles) }
