@@ -137,7 +137,7 @@ struct MediaExpandedView: View {
     var body: some View {
         VStack(spacing: 8) {
             if let track {
-                TimelineView(.periodic(from: .now, by: 0.25)) { context in
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !track.isPlaying)) { context in
                     let position = track.currentPosition(at: context.date)
                     HStack(spacing: 12) {
                         playerColumn(track: track, position: position)
@@ -266,8 +266,10 @@ struct MediaExpandedView: View {
                             ForEach(lyrics.lines) { line in
                                 let isCurrent = line.id == activeIndex
                                 Text(line.text)
-                                    .font(.system(size: isCurrent ? 12.5 : 11.5, weight: isCurrent ? .semibold : .regular))
+                                    .font(.system(size: 12, weight: isCurrent ? .semibold : .regular))
                                     .foregroundStyle(isCurrent ? .white : .white.opacity(0.35))
+                                    .scaleEffect(isCurrent ? 1.03 : 1.0, anchor: .leading)
+                                    .animation(.easeInOut(duration: 0.22), value: isCurrent)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .id(line.id)
                             }
@@ -276,7 +278,7 @@ struct MediaExpandedView: View {
                     }
                     .onChange(of: activeIndex) { _, newValue in
                         guard let newValue else { return }
-                        withAnimation(.easeOut(duration: 0.25)) {
+                        withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
                             proxy.scrollTo(newValue, anchor: .center)
                         }
                     }

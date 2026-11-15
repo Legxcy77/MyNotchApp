@@ -278,6 +278,7 @@ struct ExpandedView: View {
         .padding(.horizontal, 20)
         .padding(.top, clearance + 10)
         .padding(.bottom, 12)
+        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: expandedTab)
     }
 
     @ViewBuilder
