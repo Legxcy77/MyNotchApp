@@ -12,6 +12,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     var onPinLogFile: (@MainActor (String) -> Void)?
     var onUnpinLog: (@MainActor () -> Void)?
     var onSetupFaceUnlock: (@MainActor () -> Void)?
+    var onLockScreen: (@MainActor () -> Void)?
 
     init(store: NotchStore, window: NotchWindowController, launchAtLogin: LaunchAtLoginService, feedback: FeedbackService) {
         self.store = store
@@ -117,6 +118,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu.addItem(logItem)
 
         menu.addItem(.separator())
+        menu.addItem(ActionMenuItem(title: "Lock Screen (⌥⌘L)") { [weak self] in
+            self?.onLockScreen?()
+        })
         menu.addItem(ActionMenuItem(title: "Setup Face Unlock…") { [weak self] in
             self?.onSetupFaceUnlock?()
         })

@@ -46,6 +46,7 @@ final class AppCoordinator {
     private let geminiClient = GeminiClient()
     private let faceAuthService = FaceAuthService()
     private var faceEnrollmentWindow: NSWindow?
+    private var lockScreenController: LockScreenWindowController?
     private var isMenuOpen = false
 
     init() {
@@ -142,6 +143,17 @@ final class AppCoordinator {
         statusBar.onSetupFaceUnlock = { [weak self] in
             self?.showFaceEnrollmentWindow()
         }
+        statusBar.onLockScreen = { [weak self] in
+            self?.lockScreenController?.lock()
+        }
+
+        lockScreenController = LockScreenWindowController(
+            store: store,
+            faceAuth: faceAuthService,
+            onMediaCommand: { [weak self] command in
+                self?.nowPlaying?.perform(command)
+            }
+        )
         store.onServerAction = { [weak self] action in
             switch action {
             case .open(let s):
@@ -544,6 +556,9 @@ final class AppCoordinator {
         }
         hk.registerOptionA { [weak store] in
             store?.send(.toggleQuickAI)
+        }
+        hk.registerOptionCommandL { [weak self] in
+            self?.lockScreenController?.lock()
         }
         hotKey = hk
     }
