@@ -39,8 +39,8 @@ Legend: `[x]` done · `[ ]` todo · (U) unit-tested · (V) verified by eye on a 
 ## Media
 - [x] **M1** `LRCParser` (pure). Gate: (U) multi-timestamp lines, offsets, metadata, blank lines, binary-search current line.
 - [x] **M2** `LRCLibClient` (`GET https://lrclib.net/api/get?artist_name=&track_name=&album_name=&duration=`) + `actor LyricsCache` (memory + `~/Library/Caches/MyNotchApp/lyrics/*.json`). Gate: (U) via a URLProtocol mock: 200/404/timeout, the second hit comes from cache.
-- [ ] **M3** NowPlaying: Spotify (`com.spotify.client.PlaybackStateChanged`) + Music (`com.apple.Music.playerInfo`) DistributedNotifications. AppleScript for artwork/position/controls. Optional `MediaRemoteAdapterProvider` behind a protocol. Position = anchor + elapsed in `TimelineView`. Gate: (V) play/pause/skip are reflected within 300ms.
-- [ ] **M4** Compact media in the ears (artwork left, live bars right) and expanded media with lyrics, current line bright, neighbors dimmed, auto-scroll. Gate: (V).
+- [x] **M3** NowPlaying: Spotify (`com.spotify.client.PlaybackStateChanged`) + Music (`com.apple.Music.playerInfo`) DistributedNotifications. AppleScript for artwork/position/controls. Optional `MediaRemoteAdapterProvider` behind a protocol. Position = anchor + elapsed in `TimelineView`. Gate: (V) play/pause/skip are reflected within 300ms.
+- [x] **M4** Compact media in the ears (artwork left, live bars right) and expanded media with lyrics, current line bright, neighbors dimmed, auto-scroll. Gate: (V).
 
 ## Tier A
 - [ ] **A1 Meeting Countdown**: EventKit, next event with a Meet/Zoom/Teams URL. At T-5min a persistent ear countdown with a Join button. Gate: (V).
@@ -74,4 +74,5 @@ Legend: `[x]` done · `[ ]` todo · (U) unit-tested · (V) verified by eye on a 
 - 2026-11-15: D7 implemented (`FeedbackPolicy`, `FeedbackService` using `NSHapticFeedbackManager` on `.high`/`.critical` toasts and subtle `NSSound` per tint, deduplicated in `NotchStore.onToastShown`, menu bar toggles). 62/62 tests green, bundle rebuilt. D6 (V) verified by owner; D7 (V) pending.
 - 2026-11-15: M1 implemented (`LRCParser`, `LRCDocument`, `LRCLine` supporting multi-timestamps, offsets, metadata, blank lines, and binary-search current line). D7 (V) verified by owner.
 - 2026-11-15: M2 implemented (`LRCLibClient`, `LyricsCache` actor with memory + disk JSON cache). Tested with URLProtocol mock for 200/404/timeout and cache hit.
+- 2026-11-15: M3–M4 implemented (`NowPlayingTrack`, `NowPlayingService` with Spotify/Music `DistributedNotificationCenter` + AppleScript + optional `MediaRemoteNowPlayingProvider` behind `NowPlayingProvider` protocol, `MediaEarsView` artwork + live bars, `MediaExpandedView` side-by-side player + auto-scrolling LRCLIB lyrics). 66/66 tests green, bundle rebuilt. M3/M4 (V) pending.
 

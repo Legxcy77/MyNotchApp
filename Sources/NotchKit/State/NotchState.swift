@@ -17,6 +17,7 @@ public struct ErrorLensPayload: Equatable, Sendable {
 
 public enum ExpandedTab: String, Equatable, Sendable, CaseIterable {
     case overview
+    case media
     case timeline
 }
 
@@ -38,6 +39,8 @@ public struct NotchState: Equatable, Sendable {
     public var repoTasks: [RepoTask] = []
     public var expandedTab: ExpandedTab = .overview
     public var runHistory: [RunRecord] = []
+    public var nowPlaying: NowPlayingTrack?
+    public var lyrics: LRCDocument?
 
     public init() {}
 
@@ -51,6 +54,14 @@ public struct NotchState: Equatable, Sendable {
 
     public var hasActiveAgents: Bool {
         agentSessions.contains(where: \.isActive)
+    }
+
+    public var hasActiveMedia: Bool {
+        nowPlaying?.isPlaying == true
+    }
+
+    public var showsEars: Bool {
+        hasActiveAgents || hasActiveMedia
     }
 
     /// Derived, never stored, so impossible states can't exist.
@@ -90,6 +101,8 @@ public enum NotchEvent: Sendable, Equatable {
     case recordRun(RunRecord)
     case clearRunHistory
     case setExpandedTab(ExpandedTab)
+    case nowPlayingUpdated(NowPlayingTrack?)
+    case lyricsUpdated(LRCDocument?)
 }
 
 public enum NotchEffect: Sendable, Equatable {
@@ -180,6 +193,12 @@ public enum NotchReducer {
             return []
         case .setExpandedTab(let tab):
             s.expandedTab = tab
+            return []
+        case .nowPlayingUpdated(let track):
+            s.nowPlaying = track
+            return []
+        case .lyricsUpdated(let doc):
+            s.lyrics = doc
             return []
         }
     }

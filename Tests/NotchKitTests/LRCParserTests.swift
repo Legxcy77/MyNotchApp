@@ -59,3 +59,4 @@ struct LRCParserTests {
         #expect(doc.currentLineIndex(at: 99.0) == 3)
     }
 }
+

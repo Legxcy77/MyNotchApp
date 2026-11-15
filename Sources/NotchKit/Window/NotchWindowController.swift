@@ -128,7 +128,7 @@ final class NotchWindowController {
         let rect = IslandLayout.hitRect(
             for: store.mode,
             geometry: store.geometry,
-            hasActiveAgents: store.state.hasActiveAgents
+            hasActiveAgents: store.state.showsEars
         )
         let inside = rect.contains(NSEvent.mouseLocation)
         if panel.ignoresMouseEvents == inside { panel.ignoresMouseEvents = !inside }

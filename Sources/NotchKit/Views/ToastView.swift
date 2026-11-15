@@ -99,10 +99,13 @@ struct ExpandedView: View {
     let stagedFiles: [URL]
     let gitStatus: GitStatus?
     let runHistory: [RunRecord]
+    let nowPlaying: NowPlayingTrack?
+    let lyrics: LRCDocument?
     let onSelectTab: (ExpandedTab) -> Void
     let onClearFinished: () -> Void
     let onClearRunHistory: () -> Void
     let onServerAction: (NotchStore.DevServerAction) -> Void
+    let onMediaCommand: (MediaCommand) -> Void
     let onRemoveFile: (URL) -> Void
     let onClearFiles: () -> Void
 
@@ -131,6 +134,12 @@ struct ExpandedView: View {
                             onSelectTab(.overview)
                         }
                         ExpandedTabPill(
+                            title: "Media",
+                            isSelected: expandedTab == .media
+                        ) {
+                            onSelectTab(.media)
+                        }
+                        ExpandedTabPill(
                             title: runHistory.isEmpty ? "Timeline" : "Timeline (\(runHistory.count))",
                             isSelected: expandedTab == .timeline
                         ) {
@@ -152,7 +161,9 @@ struct ExpandedView: View {
                 .foregroundStyle(.white)
             }
 
-            if expandedTab == .timeline {
+            if expandedTab == .media {
+                MediaExpandedView(track: nowPlaying, lyrics: lyrics, onCommand: onMediaCommand)
+            } else if expandedTab == .timeline {
                 if runHistory.isEmpty {
                     Text("No completed commands or agent runs yet.")
                         .font(.system(size: 12))

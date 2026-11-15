@@ -147,3 +147,4 @@ public enum LRCParser {
         return minutes * 60.0 + seconds + fraction
     }
 }
+

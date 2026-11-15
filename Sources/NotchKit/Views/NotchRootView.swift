@@ -36,8 +36,8 @@ public struct NotchRootView: View {
     public var body: some View {
         let mode = store.mode
         let geometry = store.geometry
-        let hasActiveAgents = store.state.hasActiveAgents
-        let size = IslandLayout.size(for: mode, geometry: geometry, hasActiveAgents: hasActiveAgents)
+        let showsEars = store.state.showsEars
+        let size = IslandLayout.size(for: mode, geometry: geometry, hasActiveAgents: showsEars)
         let radii = IslandLayout.radii(for: mode, geometry: geometry)
         let shape = UnevenRoundedRectangle(topLeadingRadius: radii.top, bottomLeadingRadius: radii.bottom,
                                            bottomTrailingRadius: radii.bottom, topTrailingRadius: radii.top,
@@ -47,11 +47,11 @@ public struct NotchRootView: View {
             .frame(width: size.width, height: size.height, alignment: .top)
             .background(.black, in: shape)
             .clipShape(shape)
-            .shadow(color: .black.opacity(mode == .collapsed && !hasActiveAgents ? 0 : 0.4), radius: 20, y: 10)
+            .shadow(color: .black.opacity(mode == .collapsed && !showsEars ? 0 : 0.4), radius: 20, y: 10)
             .padding(.top, geometry.topInset)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .animation(Motion.morph, value: mode)
-            .animation(Motion.morph, value: hasActiveAgents)
+            .animation(Motion.morph, value: showsEars)
             .environment(\.colorScheme, .dark)
     }
 
@@ -60,13 +60,17 @@ public struct NotchRootView: View {
         ZStack(alignment: .top) {
             switch mode {
             case .collapsed:
+                let earSpacerWidth = geometry.kind == .hardware ? geometry.baseSize.width : geometry.baseSize.width - 12
                 if store.state.hasActiveAgents {
                     CollapsedEarsView(
-                        notchWidth: geometry.kind == .hardware ? geometry.baseSize.width : geometry.baseSize.width - 12,
+                        notchWidth: earSpacerWidth,
                         workingCount: store.state.workingAgentCount,
                         waitingCount: store.state.waitingAgentCount
                     )
                     .transition(.islandContent)
+                } else if let track = store.state.nowPlaying, track.isPlaying {
+                    MediaEarsView(notchWidth: earSpacerWidth, track: track)
+                        .transition(.islandContent)
                 } else {
                     Color.clear
                 }
@@ -79,10 +83,13 @@ public struct NotchRootView: View {
                     stagedFiles: store.state.stagedFiles,
                     gitStatus: store.state.gitStatus,
                     runHistory: store.state.runHistory,
+                    nowPlaying: store.state.nowPlaying,
+                    lyrics: store.state.lyrics,
                     onSelectTab: { store.send(.setExpandedTab($0)) },
                     onClearFinished: { store.send(.clearFinishedAgents) },
                     onClearRunHistory: { store.send(.clearRunHistory) },
                     onServerAction: { store.perform($0) },
+                    onMediaCommand: { store.performMedia($0) },
                     onRemoveFile: { store.send(.removeStagedFile($0)) },
                     onClearFiles: { store.send(.clearStagedFiles) }
                 )

@@ -28,6 +28,11 @@ final class AppCoordinator {
     private var hotKey: HotKeyMonitor?
     private var gitGlance: GitGlanceMonitor?
     private var logPin: LogPinMonitor?
+    private var nowPlaying: NowPlayingService?
+    private let lrclibClient = LRCLibClient()
+    private let lyricsCache = LyricsCache()
+    private var lastLyricsTrackKey: String?
+    private var lyricsTask: Task<Void, Never>?
     private var isMenuOpen = false
 
     init() {
@@ -69,6 +74,9 @@ final class AppCoordinator {
             self.store.send(.setCommandPaletteOpen(false))
             let repo = self.resolvedRepoPath()
             self.runTaskInBackground(task, repoPath: repo)
+        }
+        store.onMediaCommand = { [weak self] command in
+            self?.nowPlaying?.perform(command)
         }
         store.onPasteClipboard = { [weak self] item in
             guard let self else { return }
@@ -144,6 +152,61 @@ final class AppCoordinator {
         startClipboard()
         startGitGlance()
         startLogPin()
+        startNowPlaying()
+    }
+
+    private func startNowPlaying() {
+        let service = NowPlayingService { [weak self] track in
+            guard let self else { return }
+            self.store.send(.nowPlayingUpdated(track))
+
+            guard let track else {
+                self.lastLyricsTrackKey = nil
+                self.lyricsTask?.cancel()
+                self.store.send(.lyricsUpdated(nil))
+                return
+            }
+
+            let key = track.trackKey
+            guard key != self.lastLyricsTrackKey else { return }
+            self.lastLyricsTrackKey = key
+            self.store.send(.lyricsUpdated(nil))
+            self.lyricsTask?.cancel()
+
+            let client = self.lrclibClient
+            let cache = self.lyricsCache
+            self.lyricsTask = Task { [weak self] in
+                guard !track.artist.isEmpty, !track.title.isEmpty else { return }
+                if let res = try? await cache.lyrics(
+                    artist: track.artist,
+                    track: track.title,
+                    album: track.album,
+                    duration: track.duration,
+                    using: client
+                ), !Task.isCancelled {
+                    let doc: LRCDocument?
+                    if let synced = res.syncedLyrics, !synced.isEmpty {
+                        doc = LRCParser.parse(synced)
+                    } else if let plain = res.plainLyrics, !plain.isEmpty {
+                        let plainLines = plain
+                            .components(separatedBy: .newlines)
+                            .map { $0.trimmingCharacters(in: .whitespaces) }
+                            .filter { !$0.isEmpty }
+                            .enumerated()
+                            .map { LRCLine(id: $0.offset, time: 0, text: $0.element) }
+                        doc = LRCDocument(title: res.trackName, artist: res.artistName, album: res.albumName, lines: plainLines)
+                    } else {
+                        doc = nil
+                    }
+                    await MainActor.run { [weak self] in
+                        guard let self, self.lastLyricsTrackKey == key else { return }
+                        self.store.send(.lyricsUpdated(doc))
+                    }
+                }
+            }
+        }
+        service.start()
+        nowPlaying = service
     }
 
     private func startLogPin() {
