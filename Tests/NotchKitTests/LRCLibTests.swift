@@ -113,5 +113,13 @@ struct LRCLibTests {
         let slowed = LRCLibResponse(id: 2, duration: 260, syncedLyrics: "[00:01.00]Slow")
         #expect(LRCLibQueryCleaner.pickBestMatch(from: [slowed], targetDuration: 221) == nil)
         #expect(LRCLibQueryCleaner.pickBestMatch(from: [slowed, good], targetDuration: 221)?.id == 1)
+
+        let thaiCollab = LRCLibQueryCleaner.clean(artist: "P6ICKและSURIYA MQT", track: "1 OF 1")
+        #expect(thaiCollab.artist == "P6ICK & SURIYA MQT")
+        #expect(thaiCollab.searchQuery == "P6ICK 1 OF 1")
+
+        let karaoke = LRCLibResponse(id: 10, duration: 261, syncedLyrics: "[00:01.00]Phom yok hai thoe")
+        let thai = LRCLibResponse(id: 11, duration: 261, syncedLyrics: "[00:01.00]ผมยกให้เธอ")
+        #expect(LRCLibQueryCleaner.pickBestMatch(from: [karaoke, thai], targetDuration: 261)?.id == 11)
     }
 }

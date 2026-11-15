@@ -58,6 +58,13 @@ public enum LRCLibQueryCleaner {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         var cleanedArtist = artist.trimmingCharacters(in: .whitespacesAndNewlines)
+        // YouTube Music Thailand joins multiple artists with "และ" (no spaces), e.g. "P6ICKและSURIYA MQT"
+        cleanedArtist = cleanedArtist
+            .replacingOccurrences(of: "และ", with: " & ")
+            .replacingOccurrences(of: "กับ", with: " & ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
         if let dashRange = cleanedTrack.range(of: " - ") {
             let left = String(cleanedTrack[..<dashRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
             let right = String(cleanedTrack[dashRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -72,7 +79,12 @@ public enum LRCLibQueryCleaner {
             cleanedTrack = trimmedQuotes
         }
 
-        let query = cleanedArtist.isEmpty ? cleanedTrack : "\(cleanedArtist) \(cleanedTrack)"
+        let primaryArtist = cleanedArtist
+            .components(separatedBy: CharacterSet(charactersIn: "&,"))
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? cleanedArtist
+        let searchArtist = primaryArtist.isEmpty ? cleanedArtist : primaryArtist
+        let query = searchArtist.isEmpty ? cleanedTrack : "\(searchArtist) \(cleanedTrack)"
         return (cleanedArtist, cleanedTrack, query)
     }
 
@@ -82,15 +94,22 @@ public enum LRCLibQueryCleaner {
     ) -> LRCLibResponse? {
         let synced = candidates.filter { ($0.syncedLyrics ?? "").isEmpty == false }
         guard !synced.isEmpty else { return nil }
+        let pool: [LRCLibResponse]
         if let targetDuration, targetDuration > 0 {
-            let matching = synced.compactMap { item -> (LRCLibResponse, Double)? in
-                guard let d = item.duration else { return nil }
-                let diff = abs(d - targetDuration)
-                return diff <= 4.0 ? (item, diff) : nil
+            let matching = synced.filter { item in
+                guard let d = item.duration else { return false }
+                return abs(d - targetDuration) <= 4.0
             }
-            return matching.min(by: { $0.1 < $1.1 })?.0
+            guard !matching.isEmpty else { return nil }
+            pool = matching
+        } else {
+            pool = synced
         }
-        return synced.first
+        // Prefer Thai script over romanized karaoke when both exist
+        if let thaiMatch = pool.first(where: { ($0.syncedLyrics ?? "").range(of: #"[\u0E00-\u0E7F]"#, options: .regularExpression) != nil }) {
+            return thaiMatch
+        }
+        return pool.first
     }
 }
 
