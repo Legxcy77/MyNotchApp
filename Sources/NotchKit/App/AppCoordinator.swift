@@ -31,6 +31,7 @@ final class AppCoordinator {
     private var nowPlaying: NowPlayingService?
     private var meetingMonitor: MeetingMonitor?
     private var githubMonitor: GitHubPulseMonitor?
+    private var systemPulseMonitor: SystemPulseMonitor?
     private var notifiedMeetingIDs: Set<String> = []
     private let lrclibClient = LRCLibClient()
     private let lyricsCache = LyricsCache()
@@ -50,6 +51,10 @@ final class AppCoordinator {
                 }
             case .openURL(let url):
                 NSWorkspace.shared.open(url)
+            case .killProcess(let pid):
+                Task {
+                    await DevServerMonitor.killServer(pid: pid)
+                }
             }
         }
         window = NotchWindowController(store: store)
@@ -164,6 +169,7 @@ final class AppCoordinator {
         startNowPlaying()
         startMeetingMonitor()
         startGitHubPulse()
+        startSystemPulse()
     }
 
     private func handleFocusChanged(_ session: FocusSession?) {
@@ -196,6 +202,27 @@ final class AppCoordinator {
                 duration: .seconds(6)
             ))
         }
+    }
+
+    private func startSystemPulse() {
+        let monitor = SystemPulseMonitor { [weak self] samples, hotAlert in
+            guard let self else { return }
+            self.store.send(.systemPulseUpdated(samples))
+            if let hot = hotAlert {
+                self.store.post(Toast(
+                    key: "cpu:\(hot.pid)",
+                    title: "\(hot.name) using \(Int(hot.cpuPercent))% CPU",
+                    subtitle: "PID \(hot.pid) >90% for 30s · Click to kill",
+                    symbol: "flame.fill",
+                    tint: .failure,
+                    priority: .high,
+                    duration: .seconds(8),
+                    action: .killProcess(pid: hot.pid)
+                ))
+            }
+        }
+        monitor.start()
+        systemPulseMonitor = monitor
     }
 
     private func startGitHubPulse() {

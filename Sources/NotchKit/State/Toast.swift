@@ -11,6 +11,7 @@ public struct Toast: Equatable, Sendable, Identifiable {
     public enum Action: Equatable, Sendable, Codable {
         case activateApp(bundleID: String)
         case openURL(URL)
+        case killProcess(pid: Int32)
     }
 
     public let id: UUID

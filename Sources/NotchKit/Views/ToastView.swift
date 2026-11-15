@@ -130,6 +130,7 @@ struct ExpandedView: View {
     let nextMeeting: UpcomingMeeting?
     let focusSession: FocusSession?
     let focusDurationMinutes: Int
+    let systemPulse: [SystemPulseSample]
     let onSelectTab: (ExpandedTab) -> Void
     let onClearFinished: () -> Void
     let onClearRunHistory: () -> Void
@@ -232,11 +233,14 @@ struct ExpandedView: View {
                         }
                     }
                 }
-            } else if sessions.isEmpty && servers.isEmpty && stagedFiles.isEmpty && gitStatus == nil && nextMeeting == nil {
+            } else if sessions.isEmpty && servers.isEmpty && stagedFiles.isEmpty && gitStatus == nil && nextMeeting == nil && systemPulse.isEmpty {
                 Text("All quiet. Builds, agents and servers will show up here.")
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.4))
             } else {
+                if let latest = systemPulse.last {
+                    SystemPulseRow(samples: systemPulse, latest: latest)
+                }
                 if let meeting = nextMeeting {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         HStack(spacing: 8) {
@@ -330,6 +334,46 @@ struct ExpandedView: View {
         .padding(.horizontal, 22)
         .padding(.top, clearance + 12)
         .padding(.bottom, 14)
+    }
+}
+
+private struct SystemPulseRow: View {
+    let samples: [SystemPulseSample]
+    let latest: SystemPulseSample
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "waveform.path.ecg")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(latest.cpuPercent >= 80 ? Toast.Tint.failure.color : Toast.Tint.info.color)
+
+            Text(String(format: "CPU %.0f%%", latest.cpuPercent))
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .monospacedDigit()
+                .foregroundStyle(.white.opacity(0.85))
+
+            Text(String(format: "RAM %.1f/%.0fG", latest.ramUsedGB, latest.ramTotalGB))
+                .font(.system(size: 11, design: .monospaced))
+                .monospacedDigit()
+                .foregroundStyle(.white.opacity(0.5))
+
+            GeometryReader { geo in
+                if samples.count >= 2 {
+                    Path { path in
+                        let w = geo.size.width
+                        let h = geo.size.height
+                        for (idx, s) in samples.enumerated() {
+                            let x = w * CGFloat(idx) / CGFloat(samples.count - 1)
+                            let y = h * (1 - CGFloat(min(100, max(0, s.cpuPercent))) / 100.0)
+                            if idx == 0 { path.move(to: CGPoint(x: x, y: y)) }
+                            else { path.addLine(to: CGPoint(x: x, y: y)) }
+                        }
+                    }
+                    .stroke(Toast.Tint.info.color.opacity(0.85), style: StrokeStyle(lineWidth: 1.4, lineCap: .round, lineJoin: .round))
+                }
+            }
+            .frame(height: 14)
+        }
     }
 }
 

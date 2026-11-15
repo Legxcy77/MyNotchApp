@@ -46,6 +46,7 @@ public struct NotchState: Equatable, Sendable {
     public var nextMeeting: UpcomingMeeting?
     public var focusSession: FocusSession?
     public var focusDurationMinutes: Int = 25
+    public var systemPulse: [SystemPulseSample] = []
 
     public init() {}
 
@@ -117,6 +118,7 @@ public enum NotchEvent: Sendable, Equatable {
     case startFocus(minutes: Int, at: Date)
     case stopFocus
     case setFocusDuration(Int)
+    case systemPulseUpdated([SystemPulseSample])
 }
 
 public enum NotchEffect: Sendable, Equatable {
@@ -226,6 +228,9 @@ public enum NotchReducer {
             return []
         case .setFocusDuration(let minutes):
             s.focusDurationMinutes = max(1, minutes)
+            return []
+        case .systemPulseUpdated(let samples):
+            s.systemPulse = samples
             return []
         }
     }

@@ -102,6 +102,7 @@ public struct NotchRootView: View {
                     nextMeeting: store.state.nextMeeting,
                     focusSession: store.state.focusSession,
                     focusDurationMinutes: store.state.focusDurationMinutes,
+                    systemPulse: store.state.systemPulse,
                     onSelectTab: { store.send(.setExpandedTab($0)) },
                     onClearFinished: { store.send(.clearFinishedAgents) },
                     onClearRunHistory: { store.send(.clearRunHistory) },
