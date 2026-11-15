@@ -36,6 +36,7 @@ final class AppCoordinator {
     private var androidDropServer: AndroidDropServer?
     private var notifiedMeetingIDs: Set<String> = []
     private let lrclibClient = LRCLibClient()
+    private let safariLyricsClient = SafariYouTubeMusicLyricsClient()
     private let lyricsCache = LyricsCache()
     private var lastLyricsTrackKey: String?
     private var lyricsTask: Task<Void, Never>?
@@ -444,9 +445,11 @@ final class AppCoordinator {
             self.lyricsTask?.cancel()
 
             let client = self.lrclibClient
+            let safariClient = self.safariLyricsClient
             let cache = self.lyricsCache
             self.lyricsTask = Task { [weak self] in
                 guard !track.artist.isEmpty, !track.title.isEmpty else { return }
+                var doc: LRCDocument?
                 if let res = try? await cache.lyrics(
                     artist: track.artist,
                     track: track.title,
@@ -454,24 +457,42 @@ final class AppCoordinator {
                     duration: track.duration,
                     using: client
                 ), !Task.isCancelled {
-                    let doc: LRCDocument?
                     if let synced = res.syncedLyrics, !synced.isEmpty {
                         doc = LRCParser.parse(synced)
                     } else if let plain = res.plainLyrics, !plain.isEmpty {
-                        let plainLines = plain
-                            .components(separatedBy: .newlines)
-                            .map { $0.trimmingCharacters(in: .whitespaces) }
-                            .filter { !$0.isEmpty }
-                            .enumerated()
-                            .map { LRCLine(id: $0.offset, time: 0, text: $0.element) }
-                        doc = LRCDocument(title: res.trackName, artist: res.artistName, album: res.albumName, lines: plainLines)
-                    } else {
-                        doc = nil
+                        doc = LRCParser.plain(
+                            plain,
+                            title: res.trackName,
+                            artist: res.artistName,
+                            album: res.albumName,
+                            sourceLabel: "LRCLIB"
+                        )
                     }
-                    await MainActor.run { [weak self] in
-                        guard let self, self.lastLyricsTrackKey == key else { return }
-                        self.store.send(.lyricsUpdated(doc))
+                }
+
+                if doc == nil, !Task.isCancelled, track.source.localizedCaseInsensitiveContains("safari") {
+                    var safariText = await safariClient.fetchLyrics()
+                    if safariText == nil, !Task.isCancelled {
+                        try? await Task.sleep(for: .milliseconds(1200))
+                        if !Task.isCancelled {
+                            safariText = await safariClient.fetchLyrics()
+                        }
                     }
+                    if let safariText, !Task.isCancelled {
+                        doc = LRCParser.plain(
+                            safariText,
+                            title: track.title,
+                            artist: track.artist,
+                            album: track.album,
+                            sourceLabel: "YT MUSIC"
+                        )
+                    }
+                }
+
+                guard !Task.isCancelled, let doc else { return }
+                await MainActor.run { [weak self] in
+                    guard let self, self.lastLyricsTrackKey == key else { return }
+                    self.store.send(.lyricsUpdated(doc))
                 }
             }
         }

@@ -264,10 +264,13 @@ struct MediaExpandedView: View {
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 6) {
                             ForEach(lyrics.lines) { line in
-                                let isCurrent = line.id == activeIndex
+                                let isCurrent = lyrics.isSynced && line.id == activeIndex
+                                let textColor: Color = lyrics.isSynced
+                                    ? (isCurrent ? .white : .white.opacity(0.35))
+                                    : .white.opacity(0.82)
                                 Text(line.text)
                                     .font(.system(size: 12, weight: isCurrent ? .semibold : .regular))
-                                    .foregroundStyle(isCurrent ? .white : .white.opacity(0.35))
+                                    .foregroundStyle(textColor)
                                     .scaleEffect(isCurrent ? 1.03 : 1.0, anchor: .leading)
                                     .animation(.easeInOut(duration: 0.22), value: isCurrent)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -277,14 +280,14 @@ struct MediaExpandedView: View {
                         .padding(.vertical, 8)
                     }
                     .onChange(of: activeIndex) { _, newValue in
-                        guard let newValue else { return }
+                        guard lyrics.isSynced, let newValue else { return }
                         withAnimation(.spring(response: 0.30, dampingFraction: 0.88)) {
                             proxy.scrollTo(newValue, anchor: .center)
                         }
                     }
                 }
 
-                Text("LRCLIB")
+                Text(lyrics.sourceLabel)
                     .font(.system(size: 8.5, weight: .semibold))
                     .tracking(0.6)
                     .foregroundStyle(.white.opacity(0.25))

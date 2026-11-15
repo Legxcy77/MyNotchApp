@@ -129,4 +129,20 @@ struct LRCLibTests {
         let jpPlain = LRCLibResponse(id: 14, duration: 210, plainLyrics: "夜に駆ける")
         #expect(LRCLibQueryCleaner.pickBestMatch(from: [jpPlain], targetDuration: 210)?.id == 14)
     }
+
+    @Test func plainLyricsAndSafariCleaner() {
+        let doc = LRCParser.plain("Line 1\n\n  Line 2  ", sourceLabel: "YT MUSIC")
+        #expect(doc != nil)
+        #expect(doc?.isSynced == false)
+        #expect(doc?.sourceLabel == "YT MUSIC")
+        #expect(doc?.lines.map(\.text) == ["Line 1", "Line 2"])
+        #expect(doc?.currentLineIndex(at: 10) == nil)
+
+        #expect(SafariYouTubeMusicLyricsClient.cleanExtractedLyrics("short") == nil)
+        #expect(SafariYouTubeMusicLyricsClient.cleanExtractedLyrics("   \n  ") == nil)
+        let chinese = SafariYouTubeMusicLyricsClient.cleanExtractedLyrics(
+            "\n如果忽遠忽近的灑脫 是你要的自由\n\n那我寧願回到一個人生活\n"
+        )
+        #expect(chinese == "如果忽遠忽近的灑脫 是你要的自由\n那我寧願回到一個人生活")
+    }
 }

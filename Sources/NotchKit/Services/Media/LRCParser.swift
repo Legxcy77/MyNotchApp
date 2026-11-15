@@ -18,24 +18,30 @@ public struct LRCDocument: Equatable, Sendable {
     public let album: String?
     public let offset: TimeInterval
     public let lines: [LRCLine]
+    public let isSynced: Bool
+    public let sourceLabel: String
 
     public init(
         title: String? = nil,
         artist: String? = nil,
         album: String? = nil,
         offset: TimeInterval = 0,
-        lines: [LRCLine] = []
+        lines: [LRCLine] = [],
+        isSynced: Bool = true,
+        sourceLabel: String = "LRCLIB"
     ) {
         self.title = title
         self.artist = artist
         self.album = album
         self.offset = offset
         self.lines = lines
+        self.isSynced = isSynced
+        self.sourceLabel = sourceLabel
     }
 
     /// Binary-searches the last lyric line whose timestamp is `<= position`.
     public func currentLineIndex(at position: TimeInterval) -> Int? {
-        guard !lines.isEmpty, position >= lines[0].time else { return nil }
+        guard isSynced, !lines.isEmpty, position >= lines[0].time else { return nil }
         var low = 0
         var high = lines.count - 1
         var result = 0
@@ -101,7 +107,34 @@ public enum LRCParser {
             artist: artist,
             album: album,
             offset: offsetSeconds,
-            lines: lines
+            lines: lines,
+            isSynced: true,
+            sourceLabel: "LRCLIB"
+        )
+    }
+
+    public static func plain(
+        _ raw: String,
+        title: String? = nil,
+        artist: String? = nil,
+        album: String? = nil,
+        sourceLabel: String = "LRCLIB"
+    ) -> LRCDocument? {
+        let lines = raw
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .enumerated()
+            .map { LRCLine(id: $0.offset, time: 0, text: $0.element) }
+        guard !lines.isEmpty else { return nil }
+        return LRCDocument(
+            title: title,
+            artist: artist,
+            album: album,
+            offset: 0,
+            lines: lines,
+            isSynced: false,
+            sourceLabel: sourceLabel
         )
     }
 
