@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum Motion {
     static let morph = Animation.spring(response: 0.42, dampingFraction: 0.8)
@@ -47,12 +48,38 @@ public struct NotchRootView: View {
             .frame(width: size.width, height: size.height, alignment: .top)
             .background(.black, in: shape)
             .clipShape(shape)
+            .contentShape(shape)
+            .onDrop(of: [.fileURL], isTargeted: Binding(
+                get: { store.state.isDragging },
+                set: { store.send(.dragChanged($0)) }
+            )) { providers in
+                handleDrop(providers)
+            }
             .shadow(color: .black.opacity(mode == .collapsed && !hasActiveAgents ? 0 : 0.4), radius: 20, y: 10)
             .padding(.top, geometry.topInset)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .animation(Motion.morph, value: mode)
             .animation(Motion.morph, value: hasActiveAgents)
             .environment(\.colorScheme, .dark)
+    }
+
+    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+        var accepted = false
+        for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            accepted = true
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                let url: URL? = if let data = item as? Data {
+                    URL(dataRepresentation: data, relativeTo: nil)
+                } else {
+                    item as? URL
+                }
+                guard let url else { return }
+                Task { @MainActor in
+                    store.send(.stageFiles([url]))
+                }
+            }
+        }
+        return accepted
     }
 
     @ViewBuilder
@@ -75,8 +102,11 @@ public struct NotchRootView: View {
                     clearance: geometry.cameraClearance,
                     sessions: store.state.agentSessions,
                     servers: store.state.devServers,
+                    stagedFiles: store.state.stagedFiles,
                     onClearFinished: { store.send(.clearFinishedAgents) },
-                    onServerAction: { store.perform($0) }
+                    onServerAction: { store.perform($0) },
+                    onRemoveFile: { store.send(.removeStagedFile($0)) },
+                    onClearFiles: { store.send(.clearStagedFiles) }
                 )
                 .transition(.islandContent)
             case .toast(let toast):

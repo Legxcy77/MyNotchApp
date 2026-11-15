@@ -15,6 +15,7 @@ public struct NotchState: Equatable, Sendable {
     public var pendingToasts: [Toast] = []
     public var agentSessions: [AgentSession] = []
     public var devServers: [DevServer] = []
+    public var stagedFiles: [URL] = []
 
     public init() {}
 
@@ -48,6 +49,9 @@ public enum NotchEvent: Sendable, Equatable {
     case recordActivity(ActivityEvent, at: Date)
     case clearFinishedAgents
     case devServersUpdated([DevServer])
+    case stageFiles([URL])
+    case removeStagedFile(URL)
+    case clearStagedFiles
 }
 
 public enum NotchEffect: Sendable, Equatable {
@@ -81,6 +85,24 @@ public enum NotchReducer {
             return []
         case .devServersUpdated(let servers):
             s.devServers = servers
+            return []
+        case .stageFiles(let urls):
+            for url in urls {
+                let normalized = url.standardizedFileURL
+                if !s.stagedFiles.contains(where: { $0.standardizedFileURL == normalized }) {
+                    s.stagedFiles.append(normalized)
+                }
+            }
+            if s.stagedFiles.count > 20 {
+                s.stagedFiles.removeFirst(s.stagedFiles.count - 20)
+            }
+            return []
+        case .removeStagedFile(let url):
+            let normalized = url.standardizedFileURL
+            s.stagedFiles.removeAll { $0.standardizedFileURL == normalized }
+            return []
+        case .clearStagedFiles:
+            s.stagedFiles.removeAll()
             return []
         }
     }

@@ -87,8 +87,11 @@ struct ExpandedView: View {
     let clearance: CGFloat
     let sessions: [AgentSession]
     let servers: [DevServer]
+    let stagedFiles: [URL]
     let onClearFinished: () -> Void
     let onServerAction: (NotchStore.DevServerAction) -> Void
+    let onRemoveFile: (URL) -> Void
+    let onClearFiles: () -> Void
 
     private var hasFinished: Bool {
         sessions.contains { !$0.isActive }
@@ -115,7 +118,7 @@ struct ExpandedView: View {
                 .foregroundStyle(.white)
             }
 
-            if sessions.isEmpty && servers.isEmpty {
+            if sessions.isEmpty && servers.isEmpty && stagedFiles.isEmpty {
                 Text("All quiet. Builds, agents and servers will show up here.")
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.4))
@@ -137,6 +140,24 @@ struct ExpandedView: View {
                         }
                     }
                 }
+
+                if !stagedFiles.isEmpty {
+                    HStack(spacing: 8) {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(stagedFiles, id: \.self) { url in
+                                    StagedFileChip(url: url) {
+                                        onRemoveFile(url)
+                                    }
+                                }
+                            }
+                        }
+                        Button("Clear", action: onClearFiles)
+                            .buttonStyle(.plain)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.45))
+                    }
+                }
             }
 
             Spacer(minLength: 0)
@@ -144,6 +165,36 @@ struct ExpandedView: View {
         .padding(.horizontal, 22)
         .padding(.top, clearance + 12)
         .padding(.bottom, 14)
+    }
+}
+
+private struct StagedFileChip: View {
+    let url: URL
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
+                .resizable()
+                .frame(width: 14, height: 14)
+            Text(url.lastPathComponent)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.85))
+                .lineLimit(1)
+                .frame(maxWidth: 110, alignment: .leading)
+            Button(action: onRemove) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.white.opacity(0.1), in: Capsule())
+        .onDrag {
+            NSItemProvider(object: url as NSURL)
+        }
     }
 }
 
