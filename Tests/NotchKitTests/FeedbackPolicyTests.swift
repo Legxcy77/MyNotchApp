@@ -18,3 +18,4 @@ struct FeedbackPolicyTests {
         #expect(FeedbackPolicy.soundName(for: .info) == "Pop")
     }
 }
+
