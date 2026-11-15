@@ -487,11 +487,7 @@ public struct LockScreenView: View {
                                     .font(.system(size: 10, weight: .semibold))
                                     .foregroundStyle(faceAuth.mode == .verified ? Color.green : Color.white.opacity(0.9))
                             }
-                            Text(
-                                faceAuth.mode == .verified
-                                    ? "ปลดล็อกสำเร็จ"
-                                    : (faceAuth.mode == .verifying ? faceAuth.verifyMessage : "แตะเพื่อสแกนหน้า")
-                            )
+                            Text(faceStatusText)
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(.white.opacity(0.88))
                         }
@@ -505,6 +501,7 @@ public struct LockScreenView: View {
                                     lineWidth: 0.75
                                 )
                         )
+                        .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                 } else {
@@ -540,9 +537,23 @@ public struct LockScreenView: View {
                         Capsule()
                             .stroke(Color.white.opacity(0.22), lineWidth: 0.75)
                     )
+                    .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
             }
+        }
+    }
+
+    private var faceStatusText: String {
+        switch faceAuth.mode {
+        case .verified:
+            return "ปลดล็อกสำเร็จ"
+        case .verifying:
+            return faceAuth.verifyMessage
+        case .failed(let message):
+            return message
+        case .idle, .enrolling, .enrolled:
+            return "แตะเพื่อสแกนหน้า"
         }
     }
 

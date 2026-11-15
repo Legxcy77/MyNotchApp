@@ -10,6 +10,7 @@ public final class LockScreenWindowController {
 
     private var lockWindows: [NSWindow] = []
     public private(set) var isLocked = false
+    private var biometricContext: LAContext?
     public var autoLockOnSleepWake: Bool {
         didSet {
             UserDefaults.standard.set(autoLockOnSleepWake, forKey: Self.autoLockDefaultsKey)
@@ -94,7 +95,7 @@ public final class LockScreenWindowController {
                 defer: false,
                 screen: screen
             )
-            win.level = .screenSaver
+            win.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 2)
             win.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
             win.isReleasedWhenClosed = false
             win.backgroundColor = .black
@@ -130,11 +131,14 @@ public final class LockScreenWindowController {
 
         lockWindows = created
         NSApp.activate(ignoringOtherApps: true)
+        beginTouchIDListener()
     }
 
     public func unlock() {
         guard isLocked else { return }
         isLocked = false
+        biometricContext?.invalidate()
+        biometricContext = nil
         faceAuth.stop()
         NSApp.presentationOptions = []
 
@@ -154,6 +158,8 @@ public final class LockScreenWindowController {
 
     private func beginFaceVerification() {
         guard isLocked, faceAuth.hasEnrolledFace else { return }
+        biometricContext?.invalidate()
+        biometricContext = nil
         faceAuth.startVerification { [weak self] in
             Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .milliseconds(350))
@@ -162,7 +168,33 @@ public final class LockScreenWindowController {
         }
     }
 
+    private func beginTouchIDListener() {
+        let context = LAContext()
+        context.localizedFallbackTitle = "ใช้รหัสผ่าน"
+        var error: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
+            return
+        }
+        biometricContext = context
+        context.evaluatePolicy(
+            .deviceOwnerAuthenticationWithBiometrics,
+            localizedReason: "สแกนนิ้วเพื่อปลดล็อก MyNotchApp"
+        ) { [weak self] success, evalError in
+            Task { @MainActor [weak self] in
+                guard let self, self.isLocked else { return }
+                self.biometricContext = nil
+                if success {
+                    self.unlock()
+                } else if let laError = evalError as? LAError, laError.code == .userFallback {
+                    self.authenticateWithSystem()
+                }
+            }
+        }
+    }
+
     private func authenticateWithSystem() {
+        biometricContext?.invalidate()
+        biometricContext = nil
         let context = LAContext()
         var error: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
