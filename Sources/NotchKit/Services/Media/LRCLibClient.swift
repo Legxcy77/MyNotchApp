@@ -38,6 +38,62 @@ public enum LRCLibError: Error, Equatable, Sendable {
     case networkError(String)
 }
 
+public enum LRCLibQueryCleaner {
+    private static let noisePatterns: [String] = [
+        #"\s*\|\s*(TikTok|YouTube)\s*$"#,
+        #"\s*-\s*YouTube\s*$"#,
+        #"\s*[\(\[]\s*(Official\s*(Music\s*)?(Video|Audio|Lyric\s*Video)|Performance\s*Film|Visualizer|Lyrics?|M/?V|HD|4K)\s*[\)\]]"#,
+    ]
+
+    public static func clean(artist: String, track: String) -> (artist: String, track: String, searchQuery: String) {
+        var cleanedTrack = track.trimmingCharacters(in: .whitespacesAndNewlines)
+        for pattern in noisePatterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+                let range = NSRange(cleanedTrack.startIndex..<cleanedTrack.endIndex, in: cleanedTrack)
+                cleanedTrack = regex.stringByReplacingMatches(in: cleanedTrack, range: range, withTemplate: "")
+            }
+        }
+        cleanedTrack = cleanedTrack
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var cleanedArtist = artist.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let dashRange = cleanedTrack.range(of: " - ") {
+            let left = String(cleanedTrack[..<dashRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let right = String(cleanedTrack[dashRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !left.isEmpty, !right.isEmpty {
+                cleanedArtist = left
+                cleanedTrack = right
+            }
+        }
+
+        let trimmedQuotes = cleanedTrack.trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+        if !trimmedQuotes.isEmpty {
+            cleanedTrack = trimmedQuotes
+        }
+
+        let query = cleanedArtist.isEmpty ? cleanedTrack : "\(cleanedArtist) \(cleanedTrack)"
+        return (cleanedArtist, cleanedTrack, query)
+    }
+
+    public static func pickBestMatch(
+        from candidates: [LRCLibResponse],
+        targetDuration: TimeInterval?
+    ) -> LRCLibResponse? {
+        let synced = candidates.filter { ($0.syncedLyrics ?? "").isEmpty == false }
+        guard !synced.isEmpty else { return nil }
+        if let targetDuration, targetDuration > 0 {
+            let matching = synced.compactMap { item -> (LRCLibResponse, Double)? in
+                guard let d = item.duration else { return nil }
+                let diff = abs(d - targetDuration)
+                return diff <= 4.0 ? (item, diff) : nil
+            }
+            return matching.min(by: { $0.1 < $1.1 })?.0
+        }
+        return synced.first
+    }
+}
+
 public struct LRCLibClient: Sendable {
     private let session: URLSession
 
@@ -51,10 +107,11 @@ public struct LRCLibClient: Sendable {
         album: String? = nil,
         duration: TimeInterval? = nil
     ) async throws -> LRCLibResponse {
+        let cleaned = LRCLibQueryCleaner.clean(artist: artist, track: track)
         var components = URLComponents(string: "https://lrclib.net/api/get")
         var queryItems = [
-            URLQueryItem(name: "artist_name", value: artist),
-            URLQueryItem(name: "track_name", value: track),
+            URLQueryItem(name: "artist_name", value: cleaned.artist),
+            URLQueryItem(name: "track_name", value: cleaned.track),
         ]
         if let album, !album.isEmpty {
             queryItems.append(URLQueryItem(name: "album_name", value: album))
@@ -88,10 +145,33 @@ public struct LRCLibClient: Sendable {
         case 200:
             return try JSONDecoder().decode(LRCLibResponse.self, from: data)
         case 404:
+            if let fallback = try await searchFallback(query: cleaned.searchQuery, duration: duration) {
+                return fallback
+            }
             throw LRCLibError.notFound
         default:
             throw LRCLibError.httpError(http.statusCode)
         }
+    }
+
+    private func searchFallback(query: String, duration: TimeInterval?) async throws -> LRCLibResponse? {
+        guard !query.isEmpty,
+              var components = URLComponents(string: "https://lrclib.net/api/search") else {
+            return nil
+        }
+        components.queryItems = [URLQueryItem(name: "q", value: query)]
+        guard let url = components.url else { return nil }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 8
+        request.setValue("MyNotchApp/1.0 (https://github.com/pawalit/MyNotchApp)", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            return nil
+        }
+        let candidates = (try? JSONDecoder().decode([LRCLibResponse].self, from: data)) ?? []
+        return LRCLibQueryCleaner.pickBestMatch(from: candidates, targetDuration: duration)
     }
 }
 

@@ -100,4 +100,18 @@ struct LRCLibTests {
         }
         #expect(didThrowTimeout)
     }
+
+    @Test func cleansYouTubeTitlesAndRejectsMismatchedDuration() {
+        let cleaned = LRCLibQueryCleaner.clean(
+            artist: "Channel",
+            track: "B.I - BTBT (Official Video) | YouTube"
+        )
+        #expect(cleaned.artist == "B.I")
+        #expect(cleaned.track == "BTBT")
+
+        let good = LRCLibResponse(id: 1, duration: 220, syncedLyrics: "[00:01.00]Yes")
+        let slowed = LRCLibResponse(id: 2, duration: 260, syncedLyrics: "[00:01.00]Slow")
+        #expect(LRCLibQueryCleaner.pickBestMatch(from: [slowed], targetDuration: 221) == nil)
+        #expect(LRCLibQueryCleaner.pickBestMatch(from: [slowed, good], targetDuration: 221)?.id == 1)
+    }
 }
