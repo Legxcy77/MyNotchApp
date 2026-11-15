@@ -95,3 +95,4 @@ public final class ClipboardMonitor {
         up.post(tap: .cghidEventTap)
     }
 }
+

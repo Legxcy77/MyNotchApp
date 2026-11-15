@@ -5,13 +5,20 @@ public enum NotchMode: Equatable, Sendable {
     case expanded
     case fileDrop
     case clipboard
+    case errorLens(title: String, log: String)
     case toast(Toast)
+}
+
+public struct ErrorLensPayload: Equatable, Sendable {
+    public var title: String
+    public var log: String
 }
 
 public struct NotchState: Equatable, Sendable {
     public var isHovering = false
     public var isDragging = false
     public var isClipboardOpen = false
+    public var activeError: ErrorLensPayload?
     public var activeToast: Toast?
     /// Sorted by priority (desc), FIFO within a priority.
     public var pendingToasts: [Toast] = []
@@ -38,6 +45,7 @@ public struct NotchState: Equatable, Sendable {
     public var mode: NotchMode {
         if isDragging { return .fileDrop }
         if isClipboardOpen { return .clipboard }
+        if let activeError { return .errorLens(title: activeError.title, log: activeError.log) }
         if let activeToast { return .toast(activeToast) }
         if isHovering { return .expanded }
         return .collapsed
@@ -59,6 +67,8 @@ public enum NotchEvent: Sendable, Equatable {
     case clipboardRecorded(ClipboardItem.Content, at: Date)
     case toggleClipboard
     case setClipboardOpen(Bool)
+    case openErrorLens(title: String, log: String)
+    case closeErrorLens
 }
 
 public enum NotchEffect: Sendable, Equatable {
@@ -119,6 +129,12 @@ public enum NotchReducer {
             return []
         case .setClipboardOpen(let open):
             s.isClipboardOpen = open
+            return []
+        case .openErrorLens(let title, let log):
+            s.activeError = ErrorLensPayload(title: title, log: log)
+            return []
+        case .closeErrorLens:
+            s.activeError = nil
             return []
         }
     }

@@ -28,7 +28,7 @@ Legend: `[x]` done · `[ ]` todo · (U) unit-tested · (V) verified by eye on a 
 - [x] **S4 Clipboard History**: changeCount poll at 0.5s (no public event exists). Keep the last 50 items, text + images. Skip items from password managers (`org.nspasteboard.ConcealedType`). Global hotkey ⌥⌘V (Carbon RegisterEventHotKey) opens a searchable list in the island. Enter pastes (needs Accessibility to synthesize ⌘V). Gate: (U) store/dedupe. (V) paste an older item.
 
 ## Tier D: extra dev features (owner approved "all")
-- [ ] **D1 Error Lens**: `n <cmd>` wrapper (in notch.zsh) tees stderr and, on failure, sends the last 30 lines. The failure toast expands to a monospaced error panel with **Copy** and **Ask AI** (sends to A6). Gate: (V) `n npx tsc` with an error shows the error lines.
+- [x] **D1 Error Lens**: `n <cmd>` wrapper (in notch.zsh) tees stderr and, on failure, sends the last 30 lines. The failure toast expands to a monospaced error panel with **Copy** and **Ask AI** (sends to A6). Gate: (V) `n npx tsc` with an error shows the error lines.
 - [ ] **D2 Smart Clipboard**: detect JWT / JSON / Unix epoch / base64 / UUID / hex color / URL-encoded text in the latest copy. Offer one-click actions (decode JWT header+payload, pretty-print JSON, epoch→local time, color swatch). Gate: (U) detectors with fixtures.
 - [ ] **D3 Git Glance**: for the frontmost terminal/editor cwd (from S1/S2 reports or the last `/activity` cwd), show branch, dirty count, and ahead/behind. Use FSEvents on `.git/HEAD` + index, no polling. Gate: (V) edit a file and the count updates.
 - [ ] **D4 Log Pin**: pin a file path or a command (`docker logs -f api`). Regex rules (default `ERROR|Exception|FATAL`) flash a red toast with the matching line. Gate: (V) `echo ERROR >> pinned.log` flashes.
@@ -65,3 +65,5 @@ Legend: `[x]` done · `[ ]` todo · (U) unit-tested · (V) verified by eye on a 
 - 2026-11-15: T1 implemented (`stagedFiles` in `NotchState`, `.onDrop` → `fileDrop` mode in `NotchRootView`, `StagedFileChip` with Finder icon, `.onDrag` out, and Clear button in `ExpandedView`). 36/36 tests green, bundle rebuilt. S3 (V) verified by owner; T1 (V) pending.
 - 2026-11-15: S5 implemented (`ScreenshotDetector`, `ScreenshotWatcher` via `DispatchSource`, `Toast.thumbnailPath` thumbnail toast → auto-stage to File Tray). 38/38 tests green, bundle rebuilt. T1 (V) verified by owner; S5 (V) pending.
 - 2026-11-15: S4 implemented (`ClipboardHistory`, `ClipboardMonitor` 0.5s poll + `ConcealedType` skip + `CGEvent` ⌘V paste, `HotKeyMonitor` `⌥⌘V`, `ClipboardView` searchable list). 42/42 tests green, bundle rebuilt. S5 (V) verified by owner; S4 (V) pending.
+- 2026-11-15: D1 implemented (`Toast.errorLog`, `NotchMode.errorLens`, `ErrorLensView` with Copy & Ask AI, `--error-file` in `scripts/notch`, `n <cmd>` wrapper in `scripts/notch.zsh`). 44/44 tests green, bundle rebuilt. S4 (V) verified by owner; D1 (V) pending.
+

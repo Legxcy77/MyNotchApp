@@ -83,13 +83,30 @@ public struct NotchRootView: View {
                 )
                 .transition(.islandContent)
             case .toast(let toast):
+                let tapHandler: (() -> Void)? = if toast.errorLog != nil {
+                    { store.openErrorLens(for: toast) }
+                } else if toast.action != nil {
+                    { store.activate(toast) }
+                } else {
+                    nil
+                }
                 ToastView(
                     toast: toast,
                     clearance: geometry.cameraClearance,
-                    onTap: toast.action != nil ? { store.activate(toast) } : nil
+                    onTap: tapHandler
                 )
                     .id(toast.id) // swap content between queued toasts without morphing text
                     .transition(.islandContent)
+            case .errorLens(let title, let log):
+                ErrorLensView(
+                    title: title,
+                    log: log,
+                    clearance: geometry.cameraClearance,
+                    onCopy: { store.performErrorAction(.copy(log)) },
+                    onAskAI: { store.performErrorAction(.askAI(log)) },
+                    onClose: { store.send(.closeErrorLens) }
+                )
+                .transition(.islandContent)
             case .fileDrop:
                 Label("Drop to stage", systemImage: "tray.and.arrow.down.fill")
                     .font(.system(size: 13, weight: .medium))

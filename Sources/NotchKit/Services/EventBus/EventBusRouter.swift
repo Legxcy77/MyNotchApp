@@ -77,6 +77,7 @@ public struct EventBusRouter: Sendable {
         guard let payload = try? JSONDecoder().decode(ToastPayload.self, from: body) else {
             return badRequest("invalid_toast_payload")
         }
+        let defaultTTL = payload.errorLog != nil ? 8.0 : 3.0
         let toast = Toast(
             key: payload.key,
             title: payload.title,
@@ -84,8 +85,9 @@ public struct EventBusRouter: Sendable {
             symbol: payload.symbol ?? "bell.fill",
             tint: Self.parseTint(payload.tint),
             priority: Self.parsePriority(payload.priority),
-            duration: .seconds(payload.ttl ?? 3.0),
-            action: payload.bundleId.flatMap { $0.isEmpty ? nil : .activateApp(bundleID: $0) }
+            duration: .seconds(payload.ttl ?? defaultTTL),
+            action: payload.bundleId.flatMap { $0.isEmpty ? nil : .activateApp(bundleID: $0) },
+            errorLog: payload.errorLog
         )
         return EventBusResult(
             response: HTTPResponse(statusCode: 200, reason: "OK", json: #"{"ok":true}"#),
@@ -170,6 +172,7 @@ private struct ToastPayload: Decodable {
     var ttl: Double?
     var key: String?
     var bundleId: String?
+    var errorLog: String?
 }
 
 private struct ProgressPayload: Decodable {

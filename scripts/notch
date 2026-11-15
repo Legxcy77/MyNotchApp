@@ -35,18 +35,19 @@ case "$cmd" in
     echo
     ;;
   toast)
-    title="${1:?usage: notch toast <title> [--subtitle S] [--tint ok|fail|warn|info|neutral] [--symbol S] [--priority low|normal|high|critical] [--ttl SEC] [--key K] [--bundle-id ID]}"
+    title="${1:?usage: notch toast <title> [--subtitle S] [--tint ok|fail|warn|info|neutral] [--symbol S] [--priority low|normal|high|critical] [--ttl SEC] [--key K] [--bundle-id ID] [--error-file PATH]}"
     shift
-    subtitle="" tint="" symbol="" priority="" ttl="" key="" bundle_id=""
+    subtitle="" tint="" symbol="" priority="" ttl="" key="" bundle_id="" error_file=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
-        --subtitle)  subtitle="$2"; shift 2 ;;
-        --tint)      tint="$2"; shift 2 ;;
-        --symbol)    symbol="$2"; shift 2 ;;
-        --priority)  priority="$2"; shift 2 ;;
-        --ttl)       ttl="$2"; shift 2 ;;
-        --key)       key="$2"; shift 2 ;;
-        --bundle-id) bundle_id="$2"; shift 2 ;;
+        --subtitle)   subtitle="$2"; shift 2 ;;
+        --tint)       tint="$2"; shift 2 ;;
+        --symbol)     symbol="$2"; shift 2 ;;
+        --priority)   priority="$2"; shift 2 ;;
+        --ttl)        ttl="$2"; shift 2 ;;
+        --key)        key="$2"; shift 2 ;;
+        --bundle-id)  bundle_id="$2"; shift 2 ;;
+        --error-file) error_file="$2"; shift 2 ;;
         *) echo "unknown flag: $1" >&2; exit 2 ;;
       esac
     done
@@ -56,8 +57,13 @@ d = {"title": sys.argv[1]}
 for k, v in zip(["subtitle","tint","symbol","priority","key","bundleId"], sys.argv[2:8]):
     if v: d[k] = v
 if sys.argv[8]: d["ttl"] = float(sys.argv[8])
+if sys.argv[9]:
+    with open(sys.argv[9], "r", errors="replace") as f:
+        lines = f.read().splitlines()[-30:]
+    if lines:
+        d["errorLog"] = "\n".join(lines)
 print(json.dumps(d))
-' "$title" "$subtitle" "$tint" "$symbol" "$priority" "$key" "$bundle_id" "$ttl")
+' "$title" "$subtitle" "$tint" "$symbol" "$priority" "$key" "$bundle_id" "$ttl" "$error_file")
     post_json "/toast" "$payload"
     ;;
   progress)

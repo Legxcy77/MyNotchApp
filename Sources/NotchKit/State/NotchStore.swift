@@ -17,10 +17,16 @@ public final class NotchStore {
         case kill(DevServer)
     }
 
+    public enum ErrorLensAction: Sendable {
+        case copy(String)
+        case askAI(String)
+    }
+
     @ObservationIgnored public var hoverExitDelay: Duration = .milliseconds(180)
     @ObservationIgnored public var onAction: (@MainActor (Toast.Action) -> Void)?
     @ObservationIgnored public var onServerAction: (@MainActor (DevServerAction) -> Void)?
     @ObservationIgnored public var onPasteClipboard: (@MainActor (ClipboardItem) -> Void)?
+    @ObservationIgnored public var onErrorAction: (@MainActor (ErrorLensAction) -> Void)?
     @ObservationIgnored public var onModeChanged: (@MainActor (NotchMode) -> Void)?
     @ObservationIgnored private var expiryTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var hoverExitTask: Task<Void, Never>?
@@ -47,6 +53,16 @@ public final class NotchStore {
 
     public func paste(_ item: ClipboardItem) {
         onPasteClipboard?(item)
+    }
+
+    public func openErrorLens(for toast: Toast) {
+        guard let log = toast.errorLog else { return }
+        send(.dismissToast)
+        send(.openErrorLens(title: toast.subtitle ?? toast.title, log: log))
+    }
+
+    public func performErrorAction(_ action: ErrorLensAction) {
+        onErrorAction?(action)
     }
 
     public func activate(_ toast: Toast) {

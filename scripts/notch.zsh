@@ -101,3 +101,36 @@ _mynotch_precmd() {
 
 add-zsh-hook preexec _mynotch_preexec
 add-zsh-hook precmd _mynotch_precmd
+
+# Error Lens wrapper: `n <cmd>` tees stderr and sends the last 30 lines on failure.
+n() {
+  (( $# > 0 )) || { echo "usage: n <command...>" >&2; return 2; }
+  local errfile
+  errfile="$(mktemp -t mynotch_err.XXXXXX)"
+  local t0=$EPOCHSECONDS
+
+  "$@" 2> >(tee "$errfile" >&2)
+  local exit_code=$?
+  local elapsed=$(( EPOCHSECONDS - t0 ))
+  local dur
+  dur="$(_mynotch_format_duration "$elapsed")"
+
+  local cmd="$*"
+  (( ${#cmd} > 48 )) && cmd="${cmd[1,45]}..."
+
+  if (( exit_code != 0 )) && [[ -x "$MYNOTCH_CLI" ]]; then
+    local origin_id
+    origin_id="$(_mynotch_bundle_id)"
+    local -a args
+    args=(toast "Command failed (exit $exit_code)" --subtitle "${cmd} · ${dur}" --tint fail --symbol xmark --priority high --ttl 8)
+    [[ -s "$errfile" ]] && args+=(--error-file "$errfile")
+    [[ -n "$origin_id" ]] && args+=(--bundle-id "$origin_id")
+    "$MYNOTCH_CLI" "${args[@]}" >/dev/null 2>&1 || true
+  elif (( elapsed >= MYNOTCH_CMD_THRESHOLD )) && [[ -x "$MYNOTCH_CLI" ]]; then
+    "$MYNOTCH_CLI" toast "Command finished" --subtitle "${cmd} · ${dur}" --tint ok --symbol checkmark --ttl 4 >/dev/null 2>&1 &!
+  fi
+
+  rm -f "$errfile"
+  return $exit_code
+}
+

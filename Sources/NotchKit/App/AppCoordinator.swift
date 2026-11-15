@@ -85,6 +85,26 @@ final class AppCoordinator {
                 }
             }
         }
+        store.onErrorAction = { [weak self] action in
+            switch action {
+            case .copy(let log):
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(log, forType: .string)
+                self?.store.send(.closeErrorLens)
+                self?.store.post(Toast(title: "Copied error log", symbol: "doc.on.doc", tint: .info, duration: .seconds(2)))
+            case .askAI(let log):
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString("Explain this error:\n\n\(log)", forType: .string)
+                self?.store.send(.closeErrorLens)
+                self?.store.post(Toast(
+                    title: "Error prompt copied",
+                    subtitle: "Ready for Quick AI (A6)",
+                    symbol: "sparkles",
+                    tint: .info,
+                    duration: .seconds(3)
+                ))
+            }
+        }
 
         startEventBus()
         startScreenshotWatcher()

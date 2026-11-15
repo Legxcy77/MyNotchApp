@@ -61,3 +61,4 @@ public struct ClipboardHistory: Equatable, Sendable {
         return items.filter { $0.previewText.localizedCaseInsensitiveContains(q) }
     }
 }
+

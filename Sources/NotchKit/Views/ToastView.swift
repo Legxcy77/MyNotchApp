@@ -39,9 +39,9 @@ struct ToastView: View {
             Spacer(minLength: 0)
 
             if onTap != nil {
-                Image(systemName: "arrow.up.forward")
+                Image(systemName: toast.errorLog != nil ? "chevron.down" : "arrow.up.forward")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(.white.opacity(0.45))
             }
         }
         .padding(.horizontal, 14)
