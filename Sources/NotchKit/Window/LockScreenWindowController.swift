@@ -62,8 +62,6 @@ public final class LockScreenWindowController {
                 guard let self, self.autoLockOnSleepWake else { return }
                 if !self.isLocked {
                     self.lock()
-                } else {
-                    self.beginFaceVerification()
                 }
             }
         }
@@ -132,7 +130,6 @@ public final class LockScreenWindowController {
 
         lockWindows = created
         NSApp.activate(ignoringOtherApps: true)
-        beginFaceVerification()
     }
 
     public func unlock() {

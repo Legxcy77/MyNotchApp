@@ -487,7 +487,11 @@ public struct LockScreenView: View {
                                     .font(.system(size: 10, weight: .semibold))
                                     .foregroundStyle(faceAuth.mode == .verified ? Color.green : Color.white.opacity(0.9))
                             }
-                            Text(faceAuth.mode == .verified ? "ปลดล็อกสำเร็จ" : faceAuth.verifyMessage)
+                            Text(
+                                faceAuth.mode == .verified
+                                    ? "ปลดล็อกสำเร็จ"
+                                    : (faceAuth.mode == .verifying ? faceAuth.verifyMessage : "แตะเพื่อสแกนหน้า")
+                            )
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(.white.opacity(0.88))
                         }
