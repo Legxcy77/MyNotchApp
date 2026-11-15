@@ -26,6 +26,7 @@ final class AppCoordinator {
     private var clipboard: ClipboardMonitor?
     private var hotKey: HotKeyMonitor?
     private var gitGlance: GitGlanceMonitor?
+    private var logPin: LogPinMonitor?
     private var isMenuOpen = false
 
     init() {
@@ -77,6 +78,14 @@ final class AppCoordinator {
             self.isMenuOpen = open
             self.devServers?.setActive(self.store.mode == .expanded || open)
         }
+        statusBar.onPinLogFile = { [weak self] path in
+            self?.logPin?.pinFile(path: path)
+            self?.store.post(Toast(title: "Pinned log", subtitle: (path as NSString).lastPathComponent, symbol: "pin.fill", tint: .info, duration: .seconds(2)))
+        }
+        statusBar.onUnpinLog = { [weak self] in
+            self?.logPin?.unpin()
+            self?.store.post(Toast(title: "Unpinned log", symbol: "pin.slash", tint: .neutral, duration: .seconds(2)))
+        }
         store.onServerAction = { [weak self] action in
             switch action {
             case .open(let s):
@@ -117,6 +126,22 @@ final class AppCoordinator {
         startScreenshotWatcher()
         startClipboard()
         startGitGlance()
+        startLogPin()
+    }
+
+    private func startLogPin() {
+        let monitor = LogPinMonitor { [weak store] label, line in
+            store?.post(Toast(
+                key: "logpin:\(label)",
+                title: "Log alert · \(label)",
+                subtitle: line,
+                symbol: "exclamationmark.octagon.fill",
+                tint: .failure,
+                priority: .high,
+                duration: .seconds(4)
+            ))
+        }
+        logPin = monitor
     }
 
     private func startGitGlance() {
@@ -170,6 +195,14 @@ final class AppCoordinator {
                     if let cwd = ev.cwd, !cwd.isEmpty {
                         self.gitGlance?.watch(cwd: cwd)
                     }
+                case .pinLogFile(let path, let pattern):
+                    self.logPin?.pinFile(path: path, pattern: pattern)
+                    store.post(Toast(title: "Pinned log", subtitle: (path as NSString).lastPathComponent, symbol: "pin.fill", tint: .info, duration: .seconds(2)))
+                case .pinLogCommand(let command, let pattern):
+                    self.logPin?.pinCommand(command, pattern: pattern)
+                    store.post(Toast(title: "Pinned command", subtitle: command, symbol: "pin.fill", tint: .info, duration: .seconds(2)))
+                case .unpinLog:
+                    self.logPin?.unpin()
                 }
             }
             try server.start()

@@ -94,8 +94,36 @@ print(json.dumps(d))
 ' "$source" "$session" "$state" "$title" "$cwd")
     post_json "/activity" "$payload"
     ;;
+  logpin)
+    target="${1:?usage: notch logpin <path|--cmd CMD> [--pattern REGEX]}"
+    shift
+    path="" command="" pattern=""
+    if [[ "$target" == "--cmd" ]]; then
+      command="${1:?missing command}"; shift
+    else
+      path="$target"
+    fi
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --pattern) pattern="$2"; shift 2 ;;
+        *) echo "unknown flag: $1" >&2; exit 2 ;;
+      esac
+    done
+    payload=$(python3 -c '
+import json, sys
+d = {}
+if sys.argv[1]: d["path"] = sys.argv[1]
+if sys.argv[2]: d["command"] = sys.argv[2]
+if sys.argv[3]: d["pattern"] = sys.argv[3]
+print(json.dumps(d))
+' "$path" "$command" "$pattern")
+    post_json "/logpin" "$payload"
+    ;;
+  unpin)
+    post_json "/logpin" '{"action":"unpin"}'
+    ;;
   *)
-    echo "usage: notch <health|toast|progress|activity> ..." >&2
+    echo "usage: notch <health|toast|progress|activity|logpin|unpin> ..." >&2
     exit 2
     ;;
 esac

@@ -23,6 +23,9 @@ public struct ActivityEvent: Equatable, Sendable {
 public enum EventBusAction: Equatable, Sendable {
     case postToast(Toast)
     case activity(ActivityEvent)
+    case pinLogFile(path: String, pattern: String)
+    case pinLogCommand(command: String, pattern: String)
+    case unpinLog
 }
 
 public struct EventBusResult: Equatable, Sendable {
@@ -57,6 +60,8 @@ public struct EventBusRouter: Sendable {
             return handleProgress(request.body)
         case ("POST", "/activity"):
             return handleActivity(request.body)
+        case ("POST", "/logpin"):
+            return handleLogPin(request.body)
         default:
             return EventBusResult(
                 response: HTTPResponse(statusCode: 404, reason: "Not Found", json: #"{"error":"not_found"}"#),
@@ -136,6 +141,32 @@ public struct EventBusRouter: Sendable {
         )
     }
 
+    private func handleLogPin(_ body: Data) -> EventBusResult {
+        guard let payload = try? JSONDecoder().decode(LogPinPayload.self, from: body) else {
+            return badRequest("invalid_logpin_payload")
+        }
+        let pattern = payload.pattern ?? LogLineMatcher.defaultPattern
+        if payload.action == "unpin" {
+            return EventBusResult(
+                response: HTTPResponse(statusCode: 200, reason: "OK", json: #"{"ok":true}"#),
+                action: .unpinLog
+            )
+        }
+        if let path = payload.path, !path.isEmpty {
+            return EventBusResult(
+                response: HTTPResponse(statusCode: 200, reason: "OK", json: #"{"ok":true}"#),
+                action: .pinLogFile(path: path, pattern: pattern)
+            )
+        }
+        if let cmd = payload.command, !cmd.isEmpty {
+            return EventBusResult(
+                response: HTTPResponse(statusCode: 200, reason: "OK", json: #"{"ok":true}"#),
+                action: .pinLogCommand(command: cmd, pattern: pattern)
+            )
+        }
+        return badRequest("missing_path_or_command")
+    }
+
     private func badRequest(_ code: String) -> EventBusResult {
         EventBusResult(
             response: HTTPResponse(statusCode: 400, reason: "Bad Request", json: #"{"error":"\#(code)"}"#),
@@ -188,5 +219,12 @@ private struct ActivityPayload: Decodable {
     var state: ActivityEvent.State
     var title: String?
     var cwd: String?
+}
+
+private struct LogPinPayload: Decodable {
+    var action: String?
+    var path: String?
+    var command: String?
+    var pattern: String?
 }
 

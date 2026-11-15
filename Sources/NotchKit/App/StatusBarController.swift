@@ -8,6 +8,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let menu = NSMenu()
     var onMenuVisibilityChanged: (@MainActor (Bool) -> Void)?
+    var onPinLogFile: (@MainActor (String) -> Void)?
+    var onUnpinLog: (@MainActor () -> Void)?
 
     init(store: NotchStore, window: NotchWindowController, launchAtLogin: LaunchAtLoginService) {
         self.store = store
@@ -87,6 +89,23 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         let serversItem = NSMenuItem(title: "Dev Servers", action: nil, keyEquivalent: "")
         serversItem.submenu = serversMenu
         menu.addItem(serversItem)
+
+        let logMenu = NSMenu()
+        logMenu.addItem(ActionMenuItem(title: "Pin Log File…") { [weak self] in
+            let panel = NSOpenPanel()
+            panel.canChooseFiles = true
+            panel.canChooseDirectories = false
+            panel.allowsMultipleSelection = false
+            if panel.runModal() == .OK, let url = panel.url {
+                self?.onPinLogFile?(url.path)
+            }
+        })
+        logMenu.addItem(ActionMenuItem(title: "Unpin") { [weak self] in
+            self?.onUnpinLog?()
+        })
+        let logItem = NSMenuItem(title: "Log Pin", action: nil, keyEquivalent: "")
+        logItem.submenu = logMenu
+        menu.addItem(logItem)
 
         menu.addItem(.separator())
         let launchItem = ActionMenuItem(
