@@ -117,6 +117,9 @@ final class AppCoordinator {
             self.devServers?.setActive(mode == .expanded || self.isMenuOpen)
             Task { await self.dockerGlance?.setActive(mode == .expanded || self.isMenuOpen) }
             self.window.setClipboardFocus(mode == .clipboard || mode == .commandPalette || mode == .quickAI)
+            if mode == .expanded {
+                self.detectFrontmostRepoIfNeeded()
+            }
             if mode == .commandPalette {
                 let repo = self.resolvedRepoPath()
                 self.store.send(.setActiveRepoPath(repo))
@@ -796,6 +799,32 @@ final class AppCoordinator {
             self?.refreshRepoIntelligence(for: status)
         }
         gitGlance = monitor
+        if let saved = UserDefaults.standard.string(forKey: "mynotch.lastActiveRepoPath"),
+           FileManager.default.fileExists(atPath: saved) {
+            store.send(.setActiveRepoPath(saved))
+            monitor.watch(cwd: saved)
+        }
+    }
+
+    private func detectFrontmostRepoIfNeeded() {
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+            return
+        }
+        for info in list {
+            guard let pid = info[kCGWindowOwnerPID as String] as? Int32, pid != ownPID,
+                  let title = info[kCGWindowName as String] as? String,
+                  let workspace = WorkspaceRepoMatcher.workspaceName(fromWindowTitle: title),
+                  let repoPath = WorkspaceRepoMatcher.findGitRepo(named: workspace) else {
+                continue
+            }
+            if store.state.activeRepoPath != repoPath {
+                UserDefaults.standard.set(repoPath, forKey: "mynotch.lastActiveRepoPath")
+                store.send(.setActiveRepoPath(repoPath))
+                gitGlance?.watch(cwd: repoPath)
+            }
+            return
+        }
     }
 
     private func refreshRepoIntelligence(for status: GitStatus?) {
@@ -1283,6 +1312,7 @@ final class AppCoordinator {
     private func handleIncomingActivity(_ ev: ActivityEvent) {
         store.send(.recordActivity(ev, at: .now))
         if let cwd = ev.cwd, !cwd.isEmpty {
+            UserDefaults.standard.set(cwd, forKey: "mynotch.lastActiveRepoPath")
             store.send(.setActiveRepoPath(cwd))
             gitGlance?.watch(cwd: cwd)
         }

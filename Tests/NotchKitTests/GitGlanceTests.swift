@@ -31,5 +31,20 @@ import Testing
         #expect(status?.behind == 0)
         #expect(status?.dirtyCount == 0)
     }
+
+    @Test func workspaceRepoMatcherExtractsNameAndFindsGitRepo() throws {
+        #expect(WorkspaceRepoMatcher.workspaceName(fromWindowTitle: "keystay — HousekeepingPortalPage.tsx") == "keystay")
+        #expect(WorkspaceRepoMatcher.workspaceName(fromWindowTitle: "MyNotchApp - ToastView.swift") == "MyNotchApp")
+        #expect(WorkspaceRepoMatcher.workspaceName(fromWindowTitle: "") == nil)
+
+        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("repo-match-\(UUID().uuidString)")
+        let repo = tmp.appendingPathComponent("keystay", isDirectory: true)
+        try FileManager.default.createDirectory(at: repo.appendingPathComponent(".git", isDirectory: true), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let found = WorkspaceRepoMatcher.findGitRepo(named: "keystay", in: [tmp])
+        #expect(found == repo.path)
+        #expect(WorkspaceRepoMatcher.findGitRepo(named: "missing", in: [tmp]) == nil)
+    }
 }
 
