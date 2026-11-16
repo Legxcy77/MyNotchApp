@@ -1,9 +1,74 @@
 import SwiftUI
 
 public struct WidgetStudioView: View {
+    public enum StatusFilter: String, CaseIterable, Identifiable {
+        case all = "All"
+        case active = "Active"
+        case standby = "Standby"
+
+        public var id: String { rawValue }
+    }
+
+    private enum PreviewTelemetryState: String, CaseIterable, Identifiable {
+        case buildSuccess = "STATE 01 · BUILD SUCCESS"
+        case testFailure = "STATE 02 · TEST FAILURE"
+        case agentWaiting = "STATE 03 · AGENT WAITING"
+        case serverStopped = "STATE 04 · SERVER STOPPED"
+
+        var id: String { rawValue }
+
+        var leftText: String {
+            switch self {
+            case .buildSuccess: return "MyNotchApp · build"
+            case .testFailure: return "swift test"
+            case .agentWaiting: return "Agent · refactor"
+            case .serverStopped: return "localhost:3000"
+            }
+        }
+
+        var rightText: String {
+            switch self {
+            case .buildSuccess: return "Passed · 1.4s"
+            case .testFailure: return "2 Failed"
+            case .agentWaiting: return "Awaiting Input"
+            case .serverStopped: return "Stopped (Exit 0)"
+            }
+        }
+
+        var detailLine: String? {
+            switch self {
+            case .buildSuccess: return nil
+            case .testFailure: return "NotchReducerTests · AssertionError"
+            case .agentWaiting: return "Approve diff? ⌘⏎"
+            case .serverStopped: return nil
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .buildSuccess: return .green
+            case .testFailure: return .red
+            case .agentWaiting: return .orange
+            case .serverStopped: return .white.opacity(0.6)
+            }
+        }
+
+        var previewWidget: WidgetID {
+            switch self {
+            case .buildSuccess: return .bentoDevCockpit
+            case .testFailure: return .bentoMissionControl
+            case .agentWaiting: return .earsDevTicker
+            case .serverStopped: return .bentoDockerGlance
+            }
+        }
+    }
+
     @Bindable var config: NotchWidgetConfig
     let onPreviewWidget: (WidgetID) -> Void
     @State private var selectedCategory: WidgetCategory? = nil
+    @State private var statusFilter: StatusFilter = .all
+    @State private var searchQuery: String = ""
+    @State private var activePreview: PreviewTelemetryState = .testFailure
 
     public init(
         config: NotchWidgetConfig,
@@ -13,11 +78,29 @@ public struct WidgetStudioView: View {
         self.onPreviewWidget = onPreviewWidget
     }
 
+    private var activeCount: Int {
+        WidgetID.allCases.count { config.isEnabled($0) }
+    }
+
+    private var standbyCount: Int {
+        WidgetID.allCases.count - activeCount
+    }
+
     private var visibleWidgets: [WidgetID] {
-        if let selectedCategory {
-            return WidgetID.allCases.filter { $0.category == selectedCategory }
+        let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return WidgetID.allCases.filter { widget in
+            if let selectedCategory, widget.category != selectedCategory { return false }
+            switch statusFilter {
+            case .all: break
+            case .active: if !config.isEnabled(widget) { return false }
+            case .standby: if config.isEnabled(widget) { return false }
+            }
+            if !q.isEmpty {
+                let hay = "\(widget.title) \(widget.subtitle) \(widget.category.rawValue)".lowercased()
+                if !hay.contains(q) { return false }
+            }
+            return true
         }
-        return WidgetID.allCases
     }
 
     public var body: some View {
@@ -26,38 +109,235 @@ public struct WidgetStudioView: View {
             Divider().overlay(Color.white.opacity(0.08))
 
             ScrollView {
-                LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(), spacing: 14),
-                        GridItem(.flexible(), spacing: 14),
-                    ],
-                    spacing: 14
-                ) {
-                    ForEach(visibleWidgets) { widget in
-                        WidgetStudioCard(
-                            widget: widget,
-                            isEnabled: Binding(
-                                get: { config.isEnabled(widget) },
-                                set: { config.setEnabled(widget, $0) }
-                            ),
-                            onPreview: { onPreviewWidget(widget) }
-                        )
-                    }
+                VStack(alignment: .leading, spacing: 18) {
+                    telemetryPreviewSection
+                    moduleManagementSection
+                    freeformLayoutSection
+                    tunablesSection
                 }
                 .padding(20)
-
-                freeformLayoutSection
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 16)
-
-                tunablesSection
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 22)
             }
         }
-        .frame(minWidth: 740, minHeight: 560)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .frame(minWidth: 780, minHeight: 620)
+        .background(Color(red: 0.05, green: 0.05, blue: 0.055))
         .preferredColorScheme(.dark)
+    }
+
+    private var telemetryPreviewSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("HARDWARE TELEMETRY INSTRUMENT")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.orange.opacity(0.9))
+                Text("/ Click any state to preview in the Notch")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(activeCount) ACTIVE MODULES")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.orange)
+            }
+
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
+                spacing: 12
+            ) {
+                ForEach(PreviewTelemetryState.allCases) { state in
+                    let isSelected = activePreview == state
+                    Button {
+                        activePreview = state
+                        onPreviewWidget(state.previewWidget)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text(state.rawValue)
+                                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(isSelected ? .orange : .white.opacity(0.5))
+                                Spacer()
+                                Text(isSelected ? "ACTIVE PREVIEW" : "SELECT")
+                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(isSelected ? .orange : .white.opacity(0.35))
+                            }
+
+                            // Notch camera-housing hardware preview
+                            VStack(spacing: 4) {
+                                HStack(spacing: 10) {
+                                    Text(state.leftText)
+                                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                                        .foregroundStyle(.white.opacity(0.9))
+                                        .lineLimit(1)
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                        .fill(Color.black)
+                                        .frame(width: 46, height: 14)
+                                        .overlay(
+                                            Circle()
+                                                .fill(Color.white.opacity(0.14))
+                                                .frame(width: 5, height: 5)
+                                        )
+                                    HStack(spacing: 4) {
+                                        Circle().fill(state.tint).frame(width: 5, height: 5)
+                                        Text(state.rightText)
+                                            .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                                            .foregroundStyle(state.tint)
+                                            .lineLimit(1)
+                                    }
+                                }
+                                if let detail = state.detailLine {
+                                    Text(detail)
+                                        .font(.system(size: 9.5, design: .monospaced))
+                                        .foregroundStyle(.white.opacity(0.65))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 2)
+                                        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 10)
+                            .background(Color.black.opacity(0.88), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        }
+                        .padding(10)
+                        .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(isSelected ? Color.orange.opacity(0.55) : Color.white.opacity(0.08), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private var moduleManagementSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Text("MODULE MANAGEMENT")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.65))
+
+                HStack(spacing: 4) {
+                    filterPill(.all, label: "All (\(WidgetID.allCases.count))")
+                    filterPill(.active, label: "Active (\(activeCount))")
+                    filterPill(.standby, label: "Standby (\(standbyCount))")
+                }
+
+                Spacer()
+
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    TextField("Filter modules...", text: $searchQuery)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 11.5))
+                        .frame(width: 170)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                )
+            }
+
+            VStack(spacing: 0) {
+                HStack {
+                    Text("MODULE").frame(width: 210, alignment: .leading)
+                    Text("DESCRIPTION").frame(maxWidth: .infinity, alignment: .leading)
+                    Text("STATUS").frame(width: 90, alignment: .leading)
+                    Text("CONFIGURE").frame(width: 110, alignment: .trailing)
+                }
+                .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.42))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+
+                Divider().overlay(Color.white.opacity(0.08))
+
+                ForEach(visibleWidgets) { widget in
+                    let enabled = config.isEnabled(widget)
+                    HStack(spacing: 10) {
+                        HStack(spacing: 8) {
+                            Image(systemName: widget.symbol)
+                                .font(.system(size: 12))
+                                .foregroundStyle(enabled ? .orange : .white.opacity(0.45))
+                                .frame(width: 18)
+                            Text(widget.title)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.92))
+                                .lineLimit(1)
+                        }
+                        .frame(width: 210, alignment: .leading)
+
+                        Text(widget.subtitle)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.55))
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(enabled ? Color.orange : Color.white.opacity(0.3))
+                                .frame(width: 5, height: 5)
+                            Text(enabled ? "Active" : "Standby")
+                                .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                                .foregroundStyle(enabled ? .orange : .white.opacity(0.5))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            enabled ? Color.orange.opacity(0.12) : Color.white.opacity(0.05),
+                            in: RoundedRectangle(cornerRadius: 6)
+                        )
+                        .frame(width: 90, alignment: .leading)
+
+                        HStack(spacing: 8) {
+                            Button("Preview") {
+                                onPreviewWidget(widget)
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.65))
+
+                            Toggle("", isOn: Binding(
+                                get: { config.isEnabled(widget) },
+                                set: { config.setEnabled(widget, $0) }
+                            ))
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.mini)
+                        }
+                        .frame(width: 110, alignment: .trailing)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+
+                    Divider().overlay(Color.white.opacity(0.05))
+                }
+            }
+            .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+            )
+        }
+    }
+
+    private func filterPill(_ filter: StatusFilter, label: String) -> some View {
+        let selected = statusFilter == filter
+        return Button {
+            statusFilter = filter
+        } label: {
+            Text(label)
+                .font(.system(size: 10.5, weight: selected ? .semibold : .medium))
+                .foregroundStyle(selected ? .white : .white.opacity(0.55))
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .background(selected ? Color.white.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
     }
 
     private var freeformLayoutSection: some View {
