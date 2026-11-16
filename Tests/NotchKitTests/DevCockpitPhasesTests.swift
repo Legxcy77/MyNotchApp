@@ -417,4 +417,18 @@ import Testing
         )
         #expect(cautionBySecurity.status == .needsAttention)
     }
+
+    @Test
+    func collapsedEarsExpandOnCockpitSignalsAndStayHiddenWhenIdle() {
+        var state = NotchState()
+        #expect(!state.showsEars)
+
+        let dirtyGit = GitStatus(repoRoot: "/tmp/keystay", repoName: "keystay", branch: "main", dirtyCount: 2, ahead: 0, behind: 0)
+        _ = NotchReducer.reduce(&state, .gitStatusUpdated(dirtyGit))
+        #expect(state.showsEars)
+
+        let cleanGit = GitStatus(repoRoot: "/tmp/keystay", repoName: "keystay", branch: "main", dirtyCount: 0, ahead: 0, behind: 0)
+        _ = NotchReducer.reduce(&state, .gitStatusUpdated(cleanGit))
+        #expect(!state.showsEars)
+    }
 }

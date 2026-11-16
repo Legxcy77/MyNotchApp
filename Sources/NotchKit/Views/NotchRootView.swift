@@ -103,6 +103,15 @@ public struct NotchRootView: View {
                 } else if let track = store.state.nowPlaying, track.isPlaying {
                     MediaEarsView(notchWidth: earSpacerWidth, track: track)
                         .transition(.islandContent)
+                } else if store.state.hasCockpitSignal {
+                    CockpitEarsView(
+                        notchWidth: earSpacerWidth,
+                        buildResult: store.state.latestBuildResult,
+                        gitStatus: store.state.gitStatus,
+                        devServersCount: store.state.devServers.count,
+                        hasConflict: !store.state.agentConflicts.isEmpty
+                    )
+                    .transition(.islandContent)
                 } else if store.widgetConfig.isEnabled(.earsSystemStats),
                           store.widgetConfig.notchDisplayMode == .fixed,
                           store.widgetConfig.leftEarStat != .none || store.widgetConfig.rightEarStat != .none {
@@ -248,6 +257,53 @@ public struct NotchRootView: View {
                 .transition(.islandContent)
             }
         }
+    }
+}
+
+private struct CockpitEarsView: View {
+    let notchWidth: CGFloat
+    let buildResult: BuildTestResult?
+    let gitStatus: GitStatus?
+    let devServersCount: Int
+    let hasConflict: Bool
+
+    var body: some View {
+        let tint: Color = {
+            if buildResult?.status == .failed || hasConflict { return Toast.Tint.failure.color }
+            if buildResult?.status == .running || (gitStatus?.dirtyCount ?? 0) > 0 { return Toast.Tint.waiting.color }
+            if devServersCount > 0 { return Toast.Tint.success.color }
+            return Toast.Tint.info.color
+        }()
+
+        let leftSymbol: String = {
+            if buildResult?.status == .failed { return "xmark.octagon.fill" }
+            if buildResult?.status == .running { return "hammer.fill" }
+            if hasConflict { return "exclamationmark.2" }
+            if devServersCount > 0 { return "server.rack" }
+            return "arrow.triangle.branch"
+        }()
+
+        let rightText: String = {
+            if let dirty = gitStatus?.dirtyCount, dirty > 0 { return "\(dirty)M" }
+            if devServersCount > 0 { return "\(devServersCount)" }
+            if buildResult?.status == .failed { return "ERR" }
+            return "••"
+        }()
+
+        HStack(spacing: 0) {
+            Image(systemName: leftSymbol)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: IslandLayout.earWidth)
+
+            Spacer().frame(width: notchWidth)
+
+            Text(rightText)
+                .font(.system(size: 10.5, weight: .bold, design: .monospaced))
+                .foregroundStyle(tint)
+                .frame(width: IslandLayout.earWidth)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

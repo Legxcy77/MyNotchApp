@@ -127,8 +127,16 @@ public struct NotchState: Equatable, Sendable {
         return MeetingDetector.isWithinCountdownWindow(nextMeeting)
     }
 
+    public var hasCockpitSignal: Bool {
+        latestBuildResult?.status == .failed
+            || latestBuildResult?.status == .running
+            || !agentConflicts.isEmpty
+            || !devServers.isEmpty
+            || (gitStatus?.dirtyCount ?? 0) > 0
+    }
+
     public var showsEars: Bool {
-        hasActiveAgents || hasActiveMedia || hasUrgentMeeting || focusSession != nil || faceScanEar != nil
+        hasActiveAgents || hasActiveMedia || hasUrgentMeeting || focusSession != nil || faceScanEar != nil || hasCockpitSignal
     }
 
     /// Derived, never stored, so impossible states can't exist.
