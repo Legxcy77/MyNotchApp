@@ -431,4 +431,19 @@ import Testing
         _ = NotchReducer.reduce(&state, .gitStatusUpdated(cleanGit))
         #expect(!state.showsEars)
     }
+
+    @Test
+    func stoppedDevServerPostsClosedToastBeforeRetractingEars() {
+        var state = NotchState()
+        let vite = DevServer(pid: 1234, processName: "node", port: 3000, label: "node", associatedProject: "keystay", isProtected: false)
+        _ = NotchReducer.reduce(&state, .devServersUpdated([vite]))
+        #expect(state.showsEars)
+        #expect(state.activeToast == nil)
+
+        let effects = NotchReducer.reduce(&state, .devServersUpdated([]))
+        #expect(!state.showsEars)
+        #expect(state.activeToast?.title == "localhost:3000")
+        #expect(state.activeToast?.subtitle == "Closed · Stopped")
+        #expect(!effects.isEmpty)
+    }
 }

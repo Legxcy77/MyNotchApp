@@ -247,7 +247,21 @@ public enum NotchReducer {
             recomputeReleaseReadiness(into: &s)
             return []
         case .devServersUpdated(let servers):
+            let stopped = s.devServers.first { prev in
+                !prev.isProtected && !servers.contains(where: { $0.port == prev.port })
+            }
             s.devServers = servers
+            if let stopped {
+                return post(Toast(
+                    key: "server-stopped:\(stopped.port)",
+                    title: "localhost:\(stopped.port)",
+                    subtitle: "Closed · Stopped",
+                    symbol: "stop.circle",
+                    tint: .neutral,
+                    priority: .normal,
+                    duration: .seconds(2.5)
+                ), into: &s)
+            }
             return []
         case .dockerContainersUpdated(let containers):
             s.dockerContainers = containers

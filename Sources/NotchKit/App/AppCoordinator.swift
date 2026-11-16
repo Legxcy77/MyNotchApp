@@ -107,6 +107,7 @@ final class AppCoordinator {
             store?.send(.devServersUpdated(servers))
         }
         devServers = monitor
+        monitor.setActive(true)
         let dockerMonitor = DockerGlanceMonitor { [weak store] containers in
             store?.send(.dockerContainersUpdated(containers))
         }
@@ -168,7 +169,7 @@ final class AppCoordinator {
         statusBar.onMenuVisibilityChanged = { [weak self] open in
             guard let self else { return }
             self.isMenuOpen = open
-            self.devServers?.setActive(self.store.mode == .expanded || open)
+            self.devServers?.setActive(true)
             Task { await self.dockerGlance?.setActive(self.store.mode == .expanded || open) }
         }
         statusBar.onPinLogFile = { [weak self] path in

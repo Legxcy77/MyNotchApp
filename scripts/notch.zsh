@@ -53,6 +53,9 @@ _mynotch_preexec() {
   local first_word="${1%% *}"
   case "$first_word" in
     pnpm|npm|yarn|bun|swift|dotnet|turbo|vitest|jest|tsc|vite|cargo)
+      case "$1" in
+        *dev*|*serve*|*start*|*preview*) return 0 ;;
+      esac
       if [[ -x "$MYNOTCH_CLI" && -r "${HOME}/.mynotch/token" ]]; then
         local repo="${PWD:t}"
         local tok="$(<"${HOME}/.mynotch/token")"
