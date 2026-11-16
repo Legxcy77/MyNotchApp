@@ -41,11 +41,16 @@ public struct NotchRootView: View {
             && (store.widgetConfig.leftEarStat != .none || store.widgetConfig.rightEarStat != .none)
         let showsEars = store.state.showsEars || showsCustomStatEars
         let isFaceScanning = store.state.faceScanEar != nil
+        let hasCockpitSignal = store.state.hasCockpitSignal
+        let hasCockpitDetail = store.state.latestBuildResult?.status == .failed
+            && store.state.latestBuildResult?.primaryLocation != nil
         let size = IslandLayout.size(
             for: mode,
             geometry: geometry,
             hasActiveAgents: showsEars,
-            isFaceScanning: isFaceScanning
+            isFaceScanning: isFaceScanning,
+            hasCockpitSignal: hasCockpitSignal,
+            hasCockpitDetail: hasCockpitDetail
         )
         let radii = IslandLayout.radii(for: mode, geometry: geometry)
         let earRadius: CGFloat = geometry.kind == .hardware ? 8 : 0
@@ -106,9 +111,10 @@ public struct NotchRootView: View {
                 } else if store.state.hasCockpitSignal {
                     CockpitEarsView(
                         notchWidth: earSpacerWidth,
+                        notchHeight: geometry.baseSize.height,
                         buildResult: store.state.latestBuildResult,
                         gitStatus: store.state.gitStatus,
-                        devServersCount: store.state.devServers.count,
+                        devServers: store.state.devServers,
                         hasConflict: !store.state.agentConflicts.isEmpty
                     )
                     .transition(.islandContent)
@@ -262,48 +268,100 @@ public struct NotchRootView: View {
 
 private struct CockpitEarsView: View {
     let notchWidth: CGFloat
+    let notchHeight: CGFloat
     let buildResult: BuildTestResult?
     let gitStatus: GitStatus?
-    let devServersCount: Int
+    let devServers: [DevServer]
     let hasConflict: Bool
 
     var body: some View {
         let tint: Color = {
             if buildResult?.status == .failed || hasConflict { return Toast.Tint.failure.color }
-            if buildResult?.status == .running || (gitStatus?.dirtyCount ?? 0) > 0 { return Toast.Tint.waiting.color }
-            if devServersCount > 0 { return Toast.Tint.success.color }
+            if buildResult?.status == .running { return Toast.Tint.waiting.color }
+            if !devServers.isEmpty { return Toast.Tint.success.color }
+            if (gitStatus?.dirtyCount ?? 0) > 0 { return Toast.Tint.waiting.color }
             return Toast.Tint.info.color
         }()
 
-        let leftSymbol: String = {
-            if buildResult?.status == .failed { return "xmark.octagon.fill" }
-            if buildResult?.status == .running { return "hammer.fill" }
-            if hasConflict { return "exclamationmark.2" }
-            if devServersCount > 0 { return "server.rack" }
-            return "arrow.triangle.branch"
+        let leftLabel: String = {
+            if let b = buildResult, b.status == .failed || b.status == .running {
+                return "\(b.project) · \(b.kind.rawValue)"
+            }
+            if hasConflict { return "Agent conflict" }
+            if let s = devServers.first {
+                return "localhost:\(s.port)"
+            }
+            if let g = gitStatus {
+                return "\(g.repoName) · \(g.branch)"
+            }
+            return "Workspace"
         }()
 
-        let rightText: String = {
-            if let dirty = gitStatus?.dirtyCount, dirty > 0 { return "\(dirty)M" }
-            if devServersCount > 0 { return "\(devServersCount)" }
-            if buildResult?.status == .failed { return "ERR" }
-            return "••"
+        let rightLabel: String = {
+            if let b = buildResult, b.status == .failed {
+                return "Failed"
+            }
+            if let b = buildResult, b.status == .running {
+                return "Running"
+            }
+            if hasConflict { return "Conflict" }
+            if let s = devServers.first {
+                return s.associatedProject ?? "Live"
+            }
+            if let dirty = gitStatus?.dirtyCount, dirty > 0 {
+                return "\(dirty) Modified"
+            }
+            return "Active"
         }()
 
-        HStack(spacing: 0) {
-            Image(systemName: leftSymbol)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(tint)
-                .frame(width: IslandLayout.earWidth)
+        let detailLine: String? = {
+            if buildResult?.status == .failed, let loc = buildResult?.primaryLocation?.displayString {
+                return loc
+            }
+            return nil
+        }()
 
-            Spacer().frame(width: notchWidth)
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(tint)
+                        .frame(width: 5, height: 5)
+                    Text(leftLabel)
+                        .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 10)
+                .frame(width: IslandLayout.cockpitEarWidth, alignment: .trailing)
 
-            Text(rightText)
-                .font(.system(size: 10.5, weight: .bold, design: .monospaced))
-                .foregroundStyle(tint)
-                .frame(width: IslandLayout.earWidth)
+                Spacer().frame(width: notchWidth)
+
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(tint)
+                        .frame(width: 5, height: 5)
+                    Text(rightLabel)
+                        .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(tint)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 10)
+                .frame(width: IslandLayout.cockpitEarWidth, alignment: .leading)
+            }
+            .frame(height: notchHeight)
+
+            if let detailLine {
+                HStack(spacing: 4) {
+                    Text("↳ \(detailLine)")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.72))
+                        .lineLimit(1)
+                }
+                .frame(height: IslandLayout.cockpitDetailHeight)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }
 

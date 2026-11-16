@@ -11,12 +11,25 @@ public enum IslandLayout {
 
     public static let earWidth: CGFloat = 36
     public static let faceEarWidth: CGFloat = 108
+    public static let cockpitEarWidth: CGFloat = 152
+    public static let cockpitDetailHeight: CGFloat = 22
 
-    public static func size(for mode: NotchMode, geometry g: NotchGeometry, hasActiveAgents: Bool = false, isFaceScanning: Bool = false) -> CGSize {
+    public static func size(
+        for mode: NotchMode,
+        geometry g: NotchGeometry,
+        hasActiveAgents: Bool = false,
+        isFaceScanning: Bool = false,
+        hasCockpitSignal: Bool = false,
+        hasCockpitDetail: Bool = false
+    ) -> CGSize {
         switch mode {
         case .collapsed:
             if isFaceScanning {
                 return CGSize(width: g.baseSize.width + faceEarWidth * 2, height: g.baseSize.height)
+            }
+            if hasCockpitSignal {
+                let extraH: CGFloat = hasCockpitDetail ? cockpitDetailHeight : 0
+                return CGSize(width: g.baseSize.width + cockpitEarWidth * 2, height: g.baseSize.height + extraH)
             }
             guard hasActiveAgents else { return g.baseSize }
             return CGSize(width: g.baseSize.width + earWidth * 2, height: g.baseSize.height)

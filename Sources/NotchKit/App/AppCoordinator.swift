@@ -114,7 +114,7 @@ final class AppCoordinator {
 
         store.onModeChanged = { [weak self] mode in
             guard let self else { return }
-            self.devServers?.setActive(mode == .expanded || self.isMenuOpen)
+            self.devServers?.setActive(true)
             Task { await self.dockerGlance?.setActive(mode == .expanded || self.isMenuOpen) }
             self.window.setClipboardFocus(mode == .clipboard || mode == .commandPalette || mode == .quickAI)
             if mode == .expanded {

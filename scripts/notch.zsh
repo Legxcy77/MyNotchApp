@@ -50,6 +50,23 @@ _mynotch_format_duration() {
 _mynotch_preexec() {
   _mynotch_cmd="$1"
   _mynotch_t0="$EPOCHSECONDS"
+  local first_word="${1%% *}"
+  case "$first_word" in
+    pnpm|npm|yarn|bun|swift|dotnet|turbo|vitest|jest|tsc|vite|cargo)
+      if [[ -x "$MYNOTCH_CLI" && -r "${HOME}/.mynotch/token" ]]; then
+        local repo="${PWD:t}"
+        local tok="$(<"${HOME}/.mynotch/token")"
+        tok="${tok//$'\n'/}"
+        local cmd_escaped="${1//\"/\\\"}"
+        (
+          /usr/bin/curl -fsS -m 1 -X POST "http://127.0.0.1:${MYNOTCH_PORT:-7777}/build" \
+            -H "Authorization: Bearer ${tok}" \
+            -H "Content-Type: application/json" \
+            -d "{\"runId\":\"term-live\",\"project\":\"${repo}\",\"toolchain\":\"generic\",\"kind\":\"build\",\"phase\":\"started\",\"output\":\"${cmd_escaped}\"}" >/dev/null 2>&1 || true
+        ) &!
+      fi
+      ;;
+  esac
 }
 
 _mynotch_precmd() {
